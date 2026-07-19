@@ -1,0 +1,48 @@
+{
+  "users": [
+    {
+      "_id": "mock_qqy6mc9rc",
+      "createdAt": "2026-07-19T08:01:11.037Z",
+      "name": "Test Teacher",
+      "email": "teacher@test.com",
+      "password": "e5ee7d30d269943a7c8b01fb37437113:c3fe4cf32ffa3e41c93a17cb9bb01246559d849bbb471a8ec996e9f0880441a5a6591dad193176b1f6c56dd0f44f0765610465bd75aeed3917790f894d073729",
+      "schoolName": "Test School"
+    },
+    {
+      "_id": "mock_6n12jjl5y",
+      "createdAt": "2026-07-19T08:02:26.254Z",
+      "name": "Sarah Jenkins",
+      "email": "sarah.j@school.org",
+      "password": "efa55bc56815896702483c17c9d92ac2:304f6e7878da90af88d71152b6c56e4131cddfad20632ebf8170468647e1cca35307208c597c3ce12109bf20fce9432aaf19bef8bc3570c37991ad1276123a85",
+      "schoolName": "Pine Ridge Rural School"
+    }
+  ],
+  "resources": [
+    {
+      "_id": "res_mock_1",
+      "title": "Introduction to Fractions",
+      "description": "A comprehensive guide to teaching fractions to primary schoolers.",
+      "category": "Lesson Plan",
+      "subject": "Math",
+      "gradeLevel": "Primary",
+      "content": "Lesson content: 1. Fractions overview. 2. Visual exercises. 3. Interactive quizzes.",
+      "author": "user_mock_admin",
+      "downloadCount": 15,
+      "createdAt": "2026-07-14T08:00:27.353Z"
+    },
+    {
+      "_id": "res_mock_2",
+      "title": "Photosynthesis Science Lab",
+      "description": "Hands-on activity explaining the light cycle using local plants.",
+      "category": "Activity",
+      "subject": "Science",
+      "gradeLevel": "Middle",
+      "content": "Science experiment: tracking sunlight, leaf coloration, and oxygen bubbles.",
+      "author": "user_mock_admin",
+      "downloadCount": 42,
+      "createdAt": "2026-07-17T08:00:27.354Z"
+    }
+  ],
+  "folders": [],
+  "students": []
+}
