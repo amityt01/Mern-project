@@ -23,6 +23,30 @@
       "email": "maria.r@edu.org",
       "password": "6c20812093fb6513178f021016b080c4:5fd811120c846957cf778078b8469ba6d2362e6d19623cbb3d5d7ccf5aaff4b222dbea259750123ec645ce6d828b9a2aaaecd2ab1ce6a92be09a5b758f2bf484",
       "schoolName": "Oakridge High"
+    },
+    {
+      "_id": "mock_nso6a65ms",
+      "createdAt": "2026-07-21T09:00:19.279Z",
+      "name": "Dr. Sarah Jenkins",
+      "email": "sarah.jenkins@edureach.org",
+      "password": "8c2ffa6684fb612e79e4254c4470c00e:c5c4190eef8d060e42693d936f303c0211c52b9a7b35ca66abe5b1fd41fbb183f78d07d17e61c7c0d3faffc12432063ff9c6826416e29fdcefe0d28caf2dbb32",
+      "schoolName": "Pine Ridge Rural School"
+    },
+    {
+      "_id": "mock_m345u69ui",
+      "createdAt": "2026-07-21T09:01:49.988Z",
+      "name": "Alex Vance",
+      "email": "alex.vance@school.org",
+      "password": "6cea9502bb4c2e8b61f0ee93cfcbfacf:113fbb2e1a84e2d163a511e84373e5f1516d0fcb1a3adb00bf3387aa706e60bbc395d828afde7036761178128d2674f33ec1433b9168630240970bc979dcd49a",
+      "schoolName": "Oakridge Community School"
+    },
+    {
+      "_id": "mock_ngpcbailw",
+      "createdAt": "2026-07-21T09:02:49.233Z",
+      "name": "Jane Doe",
+      "email": "newteacher_1784624569215@school.org",
+      "password": "782c21e61489bc8e056fab9c47fbcf36:4c2d8bd8d901be59327bc041e6e4225d7d3084ba609e6467814199d90ea0607a9198794bcdfdbce343f9add0a3c483daeb407328a8bb89f459aa8d2ea6b128db",
+      "schoolName": "Greenwood High"
     }
   ],
   "resources": [
@@ -52,5 +76,13 @@
     }
   ],
   "folders": [],
-  "students": []
+  "students": [
+    {
+      "_id": "mock_ae97fzmil",
+      "createdAt": "2026-07-21T09:01:50.003Z",
+      "name": "Michael Scott",
+      "email": "michael.scott@student.edu",
+      "age": 20
+    }
+  ]
 }

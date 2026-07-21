@@ -38,11 +38,14 @@ const authRouter = require("./routes/auth");
 const resourcesRouter = require("./routes/resources");
 const foldersRouter = require("./routes/folders");
 const analyticsRouter = require("./routes/analytics");
+const studentsRouter = require("./routes/students");
 
 app.use("/api/auth", authRouter);
 app.use("/api/resources", resourcesRouter);
 app.use("/api/folders", foldersRouter);
 app.use("/api/analytics", analyticsRouter);
+app.use("/api/students", studentsRouter);
+app.use("/students", studentsRouter);
 
 app.use(function (req, res, next) {
   next(createError(404));
