@@ -15,6 +15,14 @@
       "email": "sarah.j@school.org",
       "password": "efa55bc56815896702483c17c9d92ac2:304f6e7878da90af88d71152b6c56e4131cddfad20632ebf8170468647e1cca35307208c597c3ce12109bf20fce9432aaf19bef8bc3570c37991ad1276123a85",
       "schoolName": "Pine Ridge Rural School"
+    },
+    {
+      "_id": "mock_srkammeo2",
+      "createdAt": "2026-07-21T05:47:16.737Z",
+      "name": "Maria Rodriguez",
+      "email": "maria.r@edu.org",
+      "password": "6c20812093fb6513178f021016b080c4:5fd811120c846957cf778078b8469ba6d2362e6d19623cbb3d5d7ccf5aaff4b222dbea259750123ec645ce6d828b9a2aaaecd2ab1ce6a92be09a5b758f2bf484",
+      "schoolName": "Oakridge High"
     }
   ],
   "resources": [
