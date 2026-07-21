@@ -1,20 +1,38 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchFolders, createFolder, deleteFolder, shareFolder, removeResourceFromFolder } from "../store/folderSlice";
+import {
+  fetchFolders,
+  createFolder,
+  deleteFolder,
+  shareFolder,
+  removeResourceFromFolder,
+  clearFolderError,
+} from "../store/folderSlice";
+import { addToast } from "../store/toastSlice";
+import { FolderItemSkeleton, TableRowSkeleton } from "./SkeletonLoader";
 
 function FolderManager() {
   const dispatch = useDispatch();
-  const { folders, isLoading } = useSelector((state) => state.folders);
+  const {
+    folders,
+    isLoading,
+    isCreating,
+    isSharing,
+    deletingFolderId,
+    removingResourceId,
+    error,
+  } = useSelector((state) => state.folders);
   const { user } = useSelector((state) => state.auth);
 
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderDesc, setNewFolderDesc] = useState("");
   const [activeFolder, setActiveFolder] = useState(null);
-  
+
   // Sharing states
   const [sharingFolderId, setSharingFolderId] = useState(null);
   const [shareEmail, setShareEmail] = useState("");
   const [sharePermission, setSharePermission] = useState("read");
+  const [shareError, setShareError] = useState("");
 
   useEffect(() => {
     dispatch(fetchFolders());
@@ -23,7 +41,7 @@ function FolderManager() {
   // Keep active folder in sync with updated list
   useEffect(() => {
     if (activeFolder) {
-      const updated = folders.find(f => f._id === activeFolder._id);
+      const updated = folders.find((f) => f._id === activeFolder._id);
       if (updated && updated !== activeFolder) {
         setActiveFolder(updated);
       } else if (!updated) {
@@ -32,51 +50,131 @@ function FolderManager() {
     }
   }, [folders, activeFolder]);
 
-  const handleCreateFolder = (e) => {
+  const handleCreateFolder = async (e) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
-    dispatch(createFolder({ name: newFolderName, description: newFolderDesc }));
-    setNewFolderName("");
-    setNewFolderDesc("");
-  };
+    dispatch(clearFolderError());
 
-  const handleDeleteFolder = (id, e) => {
-    e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this folder? All contents will be unlinked.")) {
-      dispatch(deleteFolder(id));
+    const action = await dispatch(
+      createFolder({ name: newFolderName, description: newFolderDesc })
+    );
+
+    if (createFolder.fulfilled.match(action)) {
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Folder Created",
+          message: `Collaborative folder "${action.payload.name}" is ready.`,
+        })
+      );
+      setNewFolderName("");
+      setNewFolderDesc("");
+      setActiveFolder(action.payload);
+    } else {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Creation Failed",
+          message: action.payload || "Failed to create folder.",
+        })
+      );
     }
   };
 
-  const handleShareSubmit = (e) => {
-    e.preventDefault();
-    if (!shareEmail.trim()) return;
-    dispatch(shareFolder({ id: sharingFolderId, email: shareEmail, permission: sharePermission }))
-      .unwrap()
-      .then(() => {
-        alert("Folder shared successfully!");
-        setShareEmail("");
-        setSharingFolderId(null);
-      })
-      .catch((err) => {
-        alert(err || "Failed to share folder");
-      });
+  const handleDeleteFolder = async (id, name, e) => {
+    e.stopPropagation();
+    if (
+      window.confirm(
+        `Are you sure you want to delete folder "${name}"? All contents will be unlinked.`
+      )
+    ) {
+      const action = await dispatch(deleteFolder(id));
+      if (deleteFolder.fulfilled.match(action)) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Folder Deleted",
+            message: `Folder "${name}" was deleted.`,
+          })
+        );
+        if (activeFolder && activeFolder._id === id) {
+          setActiveFolder(null);
+        }
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Delete Failed",
+            message: action.payload || "Failed to delete folder.",
+          })
+        );
+      }
+    }
   };
 
-  const handleRemoveResource = (folderId, resourceId) => {
-    if (window.confirm("Remove this resource from the folder?")) {
-      dispatch(removeResourceFromFolder({ id: folderId, resourceId }));
+  const handleShareSubmit = async (e) => {
+    e.preventDefault();
+    if (!shareEmail.trim()) return;
+    setShareError("");
+
+    const action = await dispatch(
+      shareFolder({ id: sharingFolderId, email: shareEmail, permission: sharePermission })
+    );
+
+    if (shareFolder.fulfilled.match(action)) {
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Folder Shared",
+          message: `Invited ${shareEmail} to collaborate on "${activeFolder?.name}".`,
+        })
+      );
+      setShareEmail("");
+      setSharingFolderId(null);
+      setShareError("");
+    } else {
+      setShareError(action.payload || "Failed to share folder.");
+    }
+  };
+
+  const handleRemoveResource = async (folderId, resourceId, resourceTitle) => {
+    if (window.confirm(`Remove "${resourceTitle}" from this folder?`)) {
+      const action = await dispatch(
+        removeResourceFromFolder({ id: folderId, resourceId })
+      );
+      if (removeResourceFromFolder.fulfilled.match(action)) {
+        dispatch(
+          addToast({
+            type: "info",
+            title: "Resource Unlinked",
+            message: `Removed "${resourceTitle}" from folder.`,
+          })
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Removal Failed",
+            message: action.payload || "Could not remove resource from folder.",
+          })
+        );
+      }
     }
   };
 
   const getFolderRole = (folder) => {
     if (folder.owner?._id === user?.id || folder.owner === user?.id) return "Owner";
-    const share = folder.sharedWith?.find(s => s.user?._id === user?.id || s.user === user?.id);
+    const share = folder.sharedWith?.find(
+      (s) => s.user?._id === user?.id || s.user === user?.id
+    );
     return share ? `Shared (${share.permission === "write" ? "Editor" : "Viewer"})` : "Viewer";
   };
 
   const canEditFolder = (folder) => {
     if (folder.owner?._id === user?.id || folder.owner === user?.id) return true;
-    const share = folder.sharedWith?.find(s => s.user?._id === user?.id || s.user === user?.id);
+    const share = folder.sharedWith?.find(
+      (s) => s.user?._id === user?.id || s.user === user?.id
+    );
     return share?.permission === "write";
   };
 
@@ -94,6 +192,7 @@ function FolderManager() {
                 placeholder="Folder Name (e.g. 5th Grade Science)"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
+                disabled={isCreating}
                 required
               />
             </div>
@@ -103,16 +202,35 @@ function FolderManager() {
                 placeholder="Folder Description"
                 value={newFolderDesc}
                 onChange={(e) => setNewFolderDesc(e.target.value)}
+                disabled={isCreating}
               />
             </div>
-            <button type="submit" className="btn-primary">Create Folder</button>
+            <button type="submit" className="btn-primary" disabled={isCreating}>
+              {isCreating ? (
+                <>
+                  <span className="btn-spinner" /> Creating Folder...
+                </>
+              ) : (
+                "Create Folder"
+              )}
+            </button>
           </form>
         </div>
 
         <div className="folders-list-section">
           <h3>My Folders</h3>
           {isLoading ? (
-            <div className="spinner-sm"></div>
+            <FolderItemSkeleton count={4} />
+          ) : error ? (
+            <div className="folder-error-box">
+              <p>{error}</p>
+              <button
+                className="btn-retry btn-retry-sm"
+                onClick={() => dispatch(fetchFolders())}
+              >
+                Retry Folders
+              </button>
+            </div>
           ) : folders.length === 0 ? (
             <p className="no-folders-text">No folders found. Create one above to begin.</p>
           ) : (
@@ -121,14 +239,18 @@ function FolderManager() {
                 const isActive = activeFolder && activeFolder._id === folder._id;
                 const role = getFolderRole(folder);
                 const isOwner = folder.owner?._id === user?.id || folder.owner === user?.id;
+                const isDeleting = deletingFolderId === folder._id;
 
                 return (
                   <div
                     key={folder._id}
-                    className={`folder-item ${isActive ? "active" : ""}`}
+                    className={`folder-item ${isActive ? "active" : ""} ${isDeleting ? "folder-deleting" : ""}`}
                     onClick={() => {
-                      setActiveFolder(folder);
-                      setSharingFolderId(null);
+                      if (!isDeleting) {
+                        setActiveFolder(folder);
+                        setSharingFolderId(null);
+                        setShareError("");
+                      }
                     }}
                   >
                     <div className="folder-icon-title">
@@ -145,10 +267,11 @@ function FolderManager() {
                       {isOwner && (
                         <button
                           className="btn-folder-delete"
-                          onClick={(e) => handleDeleteFolder(folder._id, e)}
+                          onClick={(e) => handleDeleteFolder(folder._id, folder.name, e)}
+                          disabled={isDeleting}
                           title="Delete Folder"
                         >
-                          &times;
+                          {isDeleting ? "..." : "×"}
                         </button>
                       )}
                     </div>
@@ -169,7 +292,9 @@ function FolderManager() {
                 <h2>{activeFolder.name}</h2>
                 <p className="folder-desc">{activeFolder.description || "No description provided."}</p>
                 <div className="folder-owner-info">
-                  <span><strong>Owner:</strong> {activeFolder.owner?.name || "Educator"} ({activeFolder.owner?.schoolName})</span>
+                  <span>
+                    <strong>Owner:</strong> {activeFolder.owner?.name || "Educator"} ({activeFolder.owner?.schoolName || "School"})
+                  </span>
                 </div>
               </div>
 
@@ -177,7 +302,12 @@ function FolderManager() {
               {activeFolder.owner?._id === user?.id && (
                 <button
                   className="btn-secondary btn-share-folder"
-                  onClick={() => setSharingFolderId(activeFolder._id)}
+                  onClick={() => {
+                    setSharingFolderId(
+                      sharingFolderId === activeFolder._id ? null : activeFolder._id
+                    );
+                    setShareError("");
+                  }}
                 >
                   Share Folder
                 </button>
@@ -188,24 +318,49 @@ function FolderManager() {
             {sharingFolderId === activeFolder._id && (
               <div className="folder-share-subform">
                 <h4>Share "{activeFolder.name}" with a Teacher</h4>
+                {shareError && (
+                  <div className="share-error-banner" role="alert">
+                    <span>{shareError}</span>
+                  </div>
+                )}
                 <form onSubmit={handleShareSubmit} className="share-form-inputs">
                   <input
                     type="email"
                     placeholder="Enter teacher's email address..."
                     value={shareEmail}
-                    onChange={(e) => setShareEmail(e.target.value)}
+                    onChange={(e) => {
+                      setShareEmail(e.target.value);
+                      if (shareError) setShareError("");
+                    }}
+                    disabled={isSharing}
                     required
                   />
                   <select
                     value={sharePermission}
                     onChange={(e) => setSharePermission(e.target.value)}
+                    disabled={isSharing}
                   >
                     <option value="read">Viewer (Read Only)</option>
                     <option value="write">Editor (Can Add/Remove)</option>
                   </select>
                   <div className="share-subform-actions">
-                    <button type="submit" className="btn-primary">Invite</button>
-                    <button type="button" className="btn-secondary" onClick={() => setSharingFolderId(null)}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={isSharing}>
+                      {isSharing ? (
+                        <>
+                          <span className="btn-spinner" /> Inviting...
+                        </>
+                      ) : (
+                        "Invite"
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setSharingFolderId(null)}
+                      disabled={isSharing}
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </form>
               </div>
@@ -216,9 +371,9 @@ function FolderManager() {
               <div className="folder-collaborators-list">
                 <strong>Collaborating Teachers:</strong>
                 <div className="collaborator-tags">
-                  {activeFolder.sharedWith.map(s => (
+                  {activeFolder.sharedWith.map((s) => (
                     <span key={s.user?._id || s.user} className="collab-tag" title={s.user?.schoolName}>
-                      {s.user?.name} ({s.permission === "write" ? "Editor" : "Viewer"})
+                      {s.user?.name || "Educator"} ({s.permission === "write" ? "Editor" : "Viewer"})
                     </span>
                   ))}
                 </div>
@@ -242,25 +397,29 @@ function FolderManager() {
                     <span>Grade</span>
                     <span>Actions</span>
                   </div>
-                  {activeFolder.resources.map((resource) => (
-                    <div key={resource._id} className="table-data-row">
-                      <span className="resource-title-cell">{resource.title}</span>
-                      <span>{resource.category}</span>
-                      <span>{resource.subject}</span>
-                      <span>{resource.gradeLevel}</span>
-                      <div className="table-actions-cell">
-                        {canEditFolder(activeFolder) && (
-                          <button
-                            className="btn-table-remove"
-                            onClick={() => handleRemoveResource(activeFolder._id, resource._id)}
-                            title="Remove from Folder"
-                          >
-                            Remove
-                          </button>
-                        )}
+                  {activeFolder.resources.map((resource) => {
+                    const isRemoving = removingResourceId === resource._id;
+                    return (
+                      <div key={resource._id} className={`table-data-row ${isRemoving ? "row-removing" : ""}`}>
+                        <span className="resource-title-cell">{resource.title}</span>
+                        <span>{resource.category}</span>
+                        <span>{resource.subject}</span>
+                        <span>{resource.gradeLevel}</span>
+                        <div className="table-actions-cell">
+                          {canEditFolder(activeFolder) && (
+                            <button
+                              className="btn-table-remove"
+                              onClick={() => handleRemoveResource(activeFolder._id, resource._id, resource.title)}
+                              disabled={isRemoving}
+                              title="Remove from Folder"
+                            >
+                              {isRemoving ? "Removing..." : "Remove"}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

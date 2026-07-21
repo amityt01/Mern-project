@@ -1,8 +1,18 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchResources, createResource, updateResource, deleteResource, downloadResource, setFilters } from "../store/resourceSlice";
+import {
+  fetchResources,
+  createResource,
+  updateResource,
+  deleteResource,
+  downloadResource,
+  setFilters,
+  clearResourceError,
+} from "../store/resourceSlice";
 import { addResourceToFolder } from "../store/folderSlice";
+import { addToast } from "../store/toastSlice";
 import ResourceForm from "./ResourceForm";
+import { ResourceCardSkeleton } from "./SkeletonLoader";
 
 const CATEGORIES = ["Worksheet", "Lesson Plan", "Activity", "Study Guide"];
 const SUBJECTS = ["Math", "Science", "English", "Social Studies", "Other"];
@@ -10,14 +20,17 @@ const GRADES = ["Primary", "Middle", "High"];
 
 function ResourcesView() {
   const dispatch = useDispatch();
-  const { resources, isLoading, error, filters } = useSelector((state) => state.resources);
+  const { resources, isLoading, isSaving, deletingId, downloadingId, error, filters } = useSelector(
+    (state) => state.resources
+  );
   const { user } = useSelector((state) => state.auth);
-  const { folders } = useSelector((state) => state.folders);
+  const { folders, isAddingResource } = useSelector((state) => state.folders);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingResource, setEditingResource] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);
   const [folderToAdd, setFolderToAdd] = useState("");
+  const [modalError, setModalError] = useState("");
 
   useEffect(() => {
     dispatch(fetchResources(filters));
@@ -32,30 +45,92 @@ function ResourcesView() {
     dispatch(fetchResources(filters));
   };
 
-  const handleUploadSubmit = (formData) => {
-    if (editingResource) {
-      dispatch(updateResource({ id: editingResource._id, resourceData: formData }));
-    } else {
-      dispatch(createResource(formData));
-    }
-    setIsFormOpen(false);
+  const openCreateModal = () => {
     setEditingResource(null);
+    setModalError("");
+    dispatch(clearResourceError());
+    setIsFormOpen(true);
   };
 
-  const handleDelete = (id, e) => {
-    e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this resource?")) {
-      dispatch(deleteResource(id));
-      if (selectedResource && selectedResource._id === id) {
-        setSelectedResource(null);
-      }
-    }
-  };
-
-  const handleEditClick = (resource, e) => {
+  const openEditModal = (resource, e) => {
     e.stopPropagation();
     setEditingResource(resource);
+    setModalError("");
+    dispatch(clearResourceError());
     setIsFormOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsFormOpen(false);
+    setEditingResource(null);
+    setModalError("");
+    dispatch(clearResourceError());
+  };
+
+  const handleUploadSubmit = async (formData) => {
+    setModalError("");
+    try {
+      if (editingResource) {
+        const action = await dispatch(
+          updateResource({ id: editingResource._id, resourceData: formData })
+        );
+        if (updateResource.fulfilled.match(action)) {
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Resource Updated",
+              message: `"${action.payload.title}" has been updated successfully.`,
+            })
+          );
+          closeModal();
+        } else {
+          setModalError(action.payload || "Failed to update resource.");
+        }
+      } else {
+        const action = await dispatch(createResource(formData));
+        if (createResource.fulfilled.match(action)) {
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Resource Published",
+              message: `"${action.payload.title}" is now shared in the library catalog.`,
+            })
+          );
+          closeModal();
+        } else {
+          setModalError(action.payload || "Failed to create resource.");
+        }
+      }
+    } catch (err) {
+      setModalError(err.message || "An unexpected error occurred.");
+    }
+  };
+
+  const handleDelete = async (id, title, e) => {
+    e.stopPropagation();
+    if (window.confirm(`Are you sure you want to delete "${title}"?`)) {
+      const action = await dispatch(deleteResource(id));
+      if (deleteResource.fulfilled.match(action)) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Resource Deleted",
+            message: `"${title}" was removed from the catalog.`,
+          })
+        );
+        if (selectedResource && selectedResource._id === id) {
+          setSelectedResource(null);
+        }
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Delete Failed",
+            message: action.payload || "Could not delete resource.",
+          })
+        );
+      }
+    }
   };
 
   const handleResourceClick = (resource) => {
@@ -63,43 +138,75 @@ function ResourcesView() {
     setFolderToAdd("");
   };
 
-  const handleDownload = (resource) => {
-    // 1. Increment download count in backend
-    dispatch(downloadResource(resource._id));
+  const handleDownload = async (resource) => {
+    const action = await dispatch(downloadResource(resource._id));
+    if (downloadResource.fulfilled.match(action)) {
+      // Build text file blob for offline access
+      const fileContent =
+        `=== ${resource.title} ===\n\n` +
+        `Category: ${resource.category}\n` +
+        `Subject: ${resource.subject}\n` +
+        `Grade Level: ${resource.gradeLevel}\n` +
+        `Author: ${resource.author?.name || "Anonymous"} (${resource.author?.schoolName || "Rural School"})\n` +
+        `Description: ${resource.description || "N/A"}\n\n` +
+        `----------------------------------------\n\n` +
+        `${resource.content}`;
 
-    // 2. Download the resource content as a text file for low-bandwidth offline access
-    const fileContent = `=== ${resource.title} ===\n\n` +
-      `Category: ${resource.category}\n` +
-      `Subject: ${resource.subject}\n` +
-      `Grade Level: ${resource.gradeLevel}\n` +
-      `Author: ${resource.author?.name || "Anonymous"} (${resource.author?.schoolName || "Rural School"})\n` +
-      `Description: ${resource.description}\n\n` +
-      `----------------------------------------\n\n` +
-      `${resource.content}`;
+      const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+      const element = document.createElement("a");
+      element.href = URL.createObjectURL(blob);
+      element.download = `${resource.title.replace(/\s+/g, "_")}.txt`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
 
-    const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
-    const element = document.createElement("a");
-    element.href = URL.createObjectURL(blob);
-    element.download = `${resource.title.replace(/\s+/g, "_")}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Download Started",
+          message: `Saved "${resource.title}" for offline learning access.`,
+        })
+      );
 
-    // Update locally in modal
-    setSelectedResource((prev) => prev ? { ...prev, downloadCount: prev.downloadCount + 1 } : null);
+      setSelectedResource((prev) =>
+        prev ? { ...prev, downloadCount: action.payload.downloadCount } : null
+      );
+    } else {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Download Error",
+          message: action.payload || "Failed to download resource content.",
+        })
+      );
+    }
   };
 
-  const handleAddToFolder = () => {
-    if (!folderToAdd) return;
-    dispatch(addResourceToFolder({ id: folderToAdd, resourceId: selectedResource._id }))
-      .unwrap()
-      .then(() => {
-        alert("Resource added to folder successfully!");
-        setFolderToAdd("");
-      })
-      .catch((err) => {
-        alert(err || "Failed to add to folder");
-      });
+  const handleAddToFolder = async () => {
+    if (!folderToAdd || !selectedResource) return;
+    const folderObj = folders.find((f) => f._id === folderToAdd);
+    const action = await dispatch(
+      addResourceToFolder({ id: folderToAdd, resourceId: selectedResource._id })
+    );
+
+    if (addResourceToFolder.fulfilled.match(action)) {
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Added to Folder",
+          message: `Added "${selectedResource.title}" to folder "${folderObj?.name || "Folder"}".`,
+        })
+      );
+      setFolderToAdd("");
+    } else {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Action Failed",
+          message: action.payload || "Failed to add resource to folder.",
+        })
+      );
+    }
   };
 
   return (
@@ -122,7 +229,9 @@ function ResourcesView() {
             <label>Subject</label>
             <select name="subject" value={filters.subject} onChange={handleFilterChange}>
               <option value="">All Subjects</option>
-              {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+              {SUBJECTS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
           </div>
 
@@ -130,7 +239,9 @@ function ResourcesView() {
             <label>Category</label>
             <select name="category" value={filters.category} onChange={handleFilterChange}>
               <option value="">All Categories</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
             </select>
           </div>
 
@@ -138,17 +249,16 @@ function ResourcesView() {
             <label>Grade Level</label>
             <select name="gradeLevel" value={filters.gradeLevel} onChange={handleFilterChange}>
               <option value="">All Grades</option>
-              {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+              {GRADES.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
             </select>
           </div>
 
           <button
             type="button"
             className="btn-primary btn-upload-trigger"
-            onClick={() => {
-              setEditingResource(null);
-              setIsFormOpen(true);
-            }}
+            onClick={openCreateModal}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="upload-btn-icon">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -165,14 +275,28 @@ function ResourcesView() {
           <div className="modal-content form-modal">
             <h3>{editingResource ? "Edit Resource" : "Share a Lesson Material"}</h3>
             <p className="modal-subtitle">Shared materials can be downloaded offline by other educators</p>
+
+            {modalError && (
+              <div className="modal-error-banner" role="alert">
+                <svg className="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{modalError}</span>
+              </div>
+            )}
+
             <ResourceForm
               onSubmit={handleUploadSubmit}
               initialData={editingResource}
-              onCancel={() => {
-                setIsFormOpen(false);
-                setEditingResource(null);
-              }}
-              submitText={editingResource ? "Save Changes" : "Publish to Library"}
+              onCancel={closeModal}
+              isSaving={isSaving}
+              submitText={
+                isSaving
+                  ? editingResource ? "Saving Changes..." : "Publishing..."
+                  : editingResource ? "Save Changes" : "Publish to Library"
+              }
             />
           </div>
         </div>
@@ -188,7 +312,7 @@ function ResourcesView() {
               </span>
               <button className="modal-close-btn" onClick={() => setSelectedResource(null)}>&times;</button>
             </div>
-            
+
             <h2>{selectedResource.title}</h2>
             <div className="resource-meta-details">
               <span><strong>Subject:</strong> {selectedResource.subject}</span>
@@ -226,18 +350,19 @@ function ResourcesView() {
                     value={folderToAdd}
                     onChange={(e) => setFolderToAdd(e.target.value)}
                     className="folder-select-dropdown"
+                    disabled={isAddingResource}
                   >
                     <option value="">-- Add to Folder --</option>
-                    {folders.map(f => (
+                    {folders.map((f) => (
                       <option key={f._id} value={f._id}>{f.name}</option>
                     ))}
                   </select>
                   <button
                     onClick={handleAddToFolder}
                     className="btn-secondary"
-                    disabled={!folderToAdd}
+                    disabled={!folderToAdd || isAddingResource}
                   >
-                    Add
+                    {isAddingResource ? "Adding..." : "Add"}
                   </button>
                 </div>
               )}
@@ -245,13 +370,22 @@ function ResourcesView() {
               <button
                 className="btn-primary btn-download"
                 onClick={() => handleDownload(selectedResource)}
+                disabled={downloadingId === selectedResource._id}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="download-btn-icon">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Download Offline Text
+                {downloadingId === selectedResource._id ? (
+                  <>
+                    <span className="btn-spinner" /> Preparing File...
+                  </>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="download-btn-icon">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Download Offline Text
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -261,14 +395,24 @@ function ResourcesView() {
       {/* Resources Library Grid */}
       <section className="resources-library">
         {isLoading ? (
-          <div className="loader-container">
-            <div className="spinner"></div>
-            <p>Loading library catalogs...</p>
-          </div>
+          <ResourceCardSkeleton count={6} />
         ) : error ? (
-          <div className="error-container">
+          <div className="error-container" role="alert">
+            <svg className="error-container-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <h3>Failed to Load Resources</h3>
             <p>{error}</p>
-            <button className="btn-retry" onClick={() => dispatch(fetchResources(filters))}>Retry</button>
+            <button className="btn-retry" onClick={() => dispatch(fetchResources(filters))}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon-sm">
+                <path d="M23 4v6h-6" />
+                <path d="M1 20v-6h6" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              Retry Loading Library
+            </button>
           </div>
         ) : resources.length === 0 ? (
           <div className="empty-container">
@@ -287,13 +431,21 @@ function ResourcesView() {
               const colors = ["avatar-pink", "avatar-purple", "avatar-blue", "avatar-teal", "avatar-orange"];
               const charCode = firstLetter.charCodeAt(0) || 0;
               const avatarClass = colors[charCode % colors.length];
+              const isDeleting = deletingId === resource._id;
 
               return (
                 <div
                   key={resource._id}
-                  className="resource-card"
+                  className={`resource-card ${isDeleting ? "card-deleting" : ""}`}
                   onClick={() => handleResourceClick(resource)}
                 >
+                  {isDeleting && (
+                    <div className="card-deleting-overlay">
+                      <span className="btn-spinner" />
+                      <span>Deleting...</span>
+                    </div>
+                  )}
+
                   <div className="card-header">
                     <span className={`category-tag ${resource.category.toLowerCase().replace(/\s+/g, "-")}`}>
                       {resource.category}
@@ -330,11 +482,19 @@ function ResourcesView() {
 
                   {isOwner && (
                     <div className="card-owner-actions">
-                      <button className="btn-icon btn-edit" onClick={(e) => handleEditClick(resource, e)}>
+                      <button
+                        className="btn-icon btn-edit"
+                        onClick={(e) => openEditModal(resource, e)}
+                        disabled={isDeleting}
+                      >
                         Edit
                       </button>
-                      <button className="btn-icon btn-delete" onClick={(e) => handleDelete(resource._id, e)}>
-                        Delete
+                      <button
+                        className="btn-icon btn-delete"
+                        onClick={(e) => handleDelete(resource._id, resource.title, e)}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? "..." : "Delete"}
                       </button>
                     </div>
                   )}

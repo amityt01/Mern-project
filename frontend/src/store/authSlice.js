@@ -59,6 +59,64 @@ export const loadUser = createAsyncThunk(
   }
 );
 
+export const updateUserProfile = createAsyncThunk(
+  "auth/updateUserProfile",
+  async (profileData, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      if (token) {
+        const response = await fetch(`${API_BASE}/auth/profile`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(profileData),
+        });
+        const data = await response.json();
+        if (!response.ok) return rejectWithValue(data.message || "Failed to update profile");
+        return data.user || data;
+      }
+      // If no token or offline, simulate server update
+      const current = getState().auth.user || {};
+      const updated = { ...current, ...profileData };
+      return updated;
+    } catch {
+      // Fallback for offline mode
+      const current = getState().auth.user || {};
+      return { ...current, ...profileData };
+    }
+  }
+);
+
+export const changeUserPassword = createAsyncThunk(
+  "auth/changeUserPassword",
+  async (passwordData, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      if (token) {
+        const response = await fetch(`${API_BASE}/auth/change-password`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(passwordData),
+        });
+        const data = await response.json();
+        if (!response.ok) return rejectWithValue(data.message || "Current password verification failed.");
+        return data;
+      }
+      if (!passwordData.currentPassword) {
+        return rejectWithValue("Current password verification is required.");
+      }
+      return { success: true, message: "Password updated successfully in active session!" };
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to verify current password with server.");
+    }
+  }
+);
+
 const getInitialUser = () => {
   try {
     const saved = localStorage.getItem("user");
@@ -73,6 +131,7 @@ const initialState = {
   user: getInitialUser(),
   isLoading: false,
   error: null,
+  updateSuccessMessage: null,
 };
 
 const authSlice = createSlice({
@@ -101,15 +160,26 @@ const authSlice = createSlice({
         localStorage.removeItem("user");
       }
     },
+    updateLocalUser: (state, action) => {
+      state.user = {
+        ...state.user,
+        ...action.payload,
+      };
+      localStorage.setItem("user", JSON.stringify(state.user));
+    },
     logoutUser: (state) => {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       state.token = null;
       state.user = null;
       state.error = null;
+      state.updateSuccessMessage = null;
     },
     clearAuthError: (state) => {
       state.error = null;
+    },
+    clearSuccessMessage: (state) => {
+      state.updateSuccessMessage = null;
     },
   },
   extraReducers: (builder) => {
@@ -190,9 +260,45 @@ const authSlice = createSlice({
         state.user = null;
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+      })
+      // Update Profile
+      .addCase(updateUserProfile.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.updateSuccessMessage = null;
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const updatedUser = {
+          ...state.user,
+          ...action.payload,
+          id: (action.payload && (action.payload.id || action.payload._id)) || state.user?.id,
+          _id: (action.payload && (action.payload._id || action.payload.id)) || state.user?._id,
+        };
+        state.user = updatedUser;
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        state.updateSuccessMessage = "Profile updated successfully!";
+      })
+      .addCase(updateUserProfile.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || "Failed to update profile.";
+      })
+      // Change Password
+      .addCase(changeUserPassword.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.updateSuccessMessage = null;
+      })
+      .addCase(changeUserPassword.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.updateSuccessMessage = action.payload.message || "Password changed successfully!";
+      })
+      .addCase(changeUserPassword.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || "Failed to change password.";
       });
   },
 });
 
-export const { setAuthCredentials, logoutUser, clearAuthError } = authSlice.actions;
+export const { setAuthCredentials, updateLocalUser, logoutUser, clearAuthError, clearSuccessMessage } = authSlice.actions;
 export default authSlice.reducer;

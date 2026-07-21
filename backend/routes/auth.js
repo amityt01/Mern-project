@@ -155,4 +155,103 @@ router.get("/me", authMiddleware, async (req, res) => {
   }
 });
 
+// @route   PUT /api/auth/profile
+// @desc    Update current authenticated user's profile info
+router.put("/profile", authMiddleware, async (req, res) => {
+  try {
+    const { name, email, schoolName, role, phone, bio, avatar, subjects } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (name) user.name = name.trim();
+    if (email) {
+      const trimmedEmail = email.trim().toLowerCase();
+      if (!EMAIL_REGEX.test(trimmedEmail)) {
+        return res.status(400).json({ message: "Please enter a valid email address." });
+      }
+      // Check if email is already taken by another user
+      const existingUser = await User.findOne({ email: trimmedEmail });
+      if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+        return res.status(409).json({ message: "This email address is already in use by another account." });
+      }
+      user.email = trimmedEmail;
+    }
+
+    if (schoolName !== undefined) user.schoolName = schoolName.trim();
+    if (role !== undefined) user.role = role.trim();
+    if (phone !== undefined) user.phone = phone.trim();
+    if (bio !== undefined) user.bio = bio.trim();
+    if (avatar !== undefined) user.avatar = avatar;
+    if (subjects !== undefined) user.subjects = Array.isArray(subjects) ? subjects : [subjects];
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Profile updated successfully!",
+      user: {
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        schoolName: user.schoolName,
+        role: user.role || "Educator",
+        phone: user.phone || "",
+        bio: user.bio || "",
+        avatar: user.avatar || "",
+        subjects: user.subjects || [],
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Failed to update profile." });
+  }
+});
+
+// @route   PUT /api/auth/change-password
+// @desc    Change authenticated user password with current password verification
+router.put("/change-password", authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Both current password and new password are required for verification." });
+    }
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters long.` });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: "New password must be different from your current password." });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found in system directory." });
+    }
+
+    const isMatch = typeof user.matchPassword === "function"
+      ? user.matchPassword(currentPassword)
+      : verifyPassword(currentPassword, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "Current password is incorrect. Identity verification failed." });
+    }
+
+    // Set new password (pre-save hook will hash it)
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Password updated successfully after identity verification!",
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Failed to change password." });
+  }
+});
+
 module.exports = router;

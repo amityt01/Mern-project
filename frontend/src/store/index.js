@@ -3,6 +3,7 @@ import authReducer from "./authSlice";
 import resourceReducer from "./resourceSlice";
 import folderReducer from "./folderSlice";
 import analyticsReducer from "./analyticsSlice";
+import toastReducer from "./toastSlice";
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,8 @@ export const store = configureStore({
     resources: resourceReducer,
     folders: folderReducer,
     analytics: analyticsReducer,
+    toast: toastReducer,
   },
 });
+
 export default store;

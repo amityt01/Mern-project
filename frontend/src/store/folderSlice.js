@@ -14,7 +14,7 @@ export const fetchFolders = createAsyncThunk(
       if (!response.ok) return rejectWithValue(data.message || "Failed to fetch folders");
       return data;
     } catch (err) {
-      return rejectWithValue(err.message || "Network error");
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
     }
   }
 );
@@ -36,7 +36,7 @@ export const createFolder = createAsyncThunk(
       if (!response.ok) return rejectWithValue(data.message || "Failed to create folder");
       return data;
     } catch (err) {
-      return rejectWithValue(err.message || "Network error");
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
     }
   }
 );
@@ -54,7 +54,7 @@ export const deleteFolder = createAsyncThunk(
       if (!response.ok) return rejectWithValue(data.message || "Failed to delete folder");
       return id;
     } catch (err) {
-      return rejectWithValue(err.message || "Network error");
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
     }
   }
 );
@@ -76,7 +76,7 @@ export const shareFolder = createAsyncThunk(
       if (!response.ok) return rejectWithValue(data.message || "Failed to share folder");
       return data;
     } catch (err) {
-      return rejectWithValue(err.message || "Network error");
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
     }
   }
 );
@@ -98,7 +98,7 @@ export const addResourceToFolder = createAsyncThunk(
       if (!response.ok) return rejectWithValue(data.message || "Failed to add resource to folder");
       return data;
     } catch (err) {
-      return rejectWithValue(err.message || "Network error");
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
     }
   }
 );
@@ -116,7 +116,7 @@ export const removeResourceFromFolder = createAsyncThunk(
       if (!response.ok) return rejectWithValue(data.message || "Failed to remove resource");
       return data;
     } catch (err) {
-      return rejectWithValue(err.message || "Network error");
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
     }
   }
 );
@@ -124,6 +124,11 @@ export const removeResourceFromFolder = createAsyncThunk(
 const initialState = {
   folders: [],
   isLoading: false,
+  isCreating: false,
+  isSharing: false,
+  isAddingResource: false,
+  deletingFolderId: null,
+  removingResourceId: null,
   error: null,
 };
 
@@ -150,46 +155,81 @@ const folderSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
+
       // Create Folder
       .addCase(createFolder.pending, (state) => {
-        state.isLoading = true;
+        state.isCreating = true;
         state.error = null;
       })
       .addCase(createFolder.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.isCreating = false;
         state.folders.unshift(action.payload);
       })
       .addCase(createFolder.rejected, (state, action) => {
-        state.isLoading = false;
+        state.isCreating = false;
         state.error = action.payload;
       })
+
       // Delete Folder
+      .addCase(deleteFolder.pending, (state, action) => {
+        state.deletingFolderId = action.meta.arg;
+        state.error = null;
+      })
       .addCase(deleteFolder.fulfilled, (state, action) => {
+        state.deletingFolderId = null;
         state.folders = state.folders.filter((f) => f._id !== action.payload);
       })
+      .addCase(deleteFolder.rejected, (state, action) => {
+        state.deletingFolderId = null;
+        state.error = action.payload;
+      })
+
       // Share Folder
+      .addCase(shareFolder.pending, (state) => {
+        state.isSharing = true;
+        state.error = null;
+      })
       .addCase(shareFolder.fulfilled, (state, action) => {
+        state.isSharing = false;
         state.folders = state.folders.map((f) =>
           f._id === action.payload._id ? action.payload : f
         );
       })
       .addCase(shareFolder.rejected, (state, action) => {
+        state.isSharing = false;
         state.error = action.payload;
       })
+
       // Add resource to folder
+      .addCase(addResourceToFolder.pending, (state) => {
+        state.isAddingResource = true;
+        state.error = null;
+      })
       .addCase(addResourceToFolder.fulfilled, (state, action) => {
+        state.isAddingResource = false;
         state.folders = state.folders.map((f) =>
           f._id === action.payload._id ? action.payload : f
         );
       })
       .addCase(addResourceToFolder.rejected, (state, action) => {
+        state.isAddingResource = false;
         state.error = action.payload;
       })
+
       // Remove resource from folder
+      .addCase(removeResourceFromFolder.pending, (state, action) => {
+        state.removingResourceId = action.meta.arg.resourceId;
+        state.error = null;
+      })
       .addCase(removeResourceFromFolder.fulfilled, (state, action) => {
+        state.removingResourceId = null;
         state.folders = state.folders.map((f) =>
           f._id === action.payload._id ? action.payload : f
         );
+      })
+      .addCase(removeResourceFromFolder.rejected, (state, action) => {
+        state.removingResourceId = null;
+        state.error = action.payload;
       });
   },
 });

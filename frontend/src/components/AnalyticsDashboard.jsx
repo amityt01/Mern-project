@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchAnalytics } from "../store/analyticsSlice";
+import { AnalyticsSkeleton } from "./SkeletonLoader";
 
 function AnalyticsDashboard() {
   const dispatch = useDispatch();
@@ -11,28 +12,38 @@ function AnalyticsDashboard() {
   }, [dispatch]);
 
   if (isLoading) {
-    return (
-      <div className="loader-container">
-        <div className="spinner"></div>
-        <p>Loading analytics engine data...</p>
-      </div>
-    );
+    return <AnalyticsSkeleton />;
   }
 
   if (error) {
     return (
-      <div className="error-container">
-        <p>Failed to load analytics: {error}</p>
-        <button className="btn-retry" onClick={() => dispatch(fetchAnalytics())}>Retry</button>
+      <div className="analytics-error-wrapper">
+        <div className="error-container" role="alert">
+          <svg className="error-container-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <h3>Analytics Engine Unavailable</h3>
+          <p>{error}</p>
+          <button className="btn-retry" onClick={() => dispatch(fetchAnalytics())}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon-sm">
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            Retry Analytics Engine
+          </button>
+        </div>
       </div>
     );
   }
 
-  const { totalResources, totalFolders, totalTeachers, totalDownloads, categories, subjects, topResources } = data;
+  const { totalResources, totalFolders, totalTeachers, totalDownloads, categories, subjects, topResources } = data || {};
 
   // Max counts for scale calculations
-  const maxCategoryCount = categories.length > 0 ? Math.max(...categories.map(c => c.count)) : 1;
-  const maxSubjectCount = subjects.length > 0 ? Math.max(...subjects.map(s => s.count)) : 1;
+  const maxCategoryCount = categories && categories.length > 0 ? Math.max(...categories.map((c) => c.count)) : 1;
+  const maxSubjectCount = subjects && subjects.length > 0 ? Math.max(...subjects.map((s) => s.count)) : 1;
 
   return (
     <div className="analytics-dashboard">
@@ -49,7 +60,7 @@ function AnalyticsDashboard() {
             </svg>
           </div>
           <div className="analytics-card-info">
-            <span className="value">{totalResources}</span>
+            <span className="value">{totalResources || 0}</span>
             <span className="label">Shared Resources</span>
           </div>
         </div>
@@ -61,7 +72,7 @@ function AnalyticsDashboard() {
             </svg>
           </div>
           <div className="analytics-card-info">
-            <span className="value">{totalFolders}</span>
+            <span className="value">{totalFolders || 0}</span>
             <span className="label">Collaborative Folders</span>
           </div>
         </div>
@@ -76,7 +87,7 @@ function AnalyticsDashboard() {
             </svg>
           </div>
           <div className="analytics-card-info">
-            <span className="value">{totalTeachers}</span>
+            <span className="value">{totalTeachers || 0}</span>
             <span className="label">Registered Educators</span>
           </div>
         </div>
@@ -90,7 +101,7 @@ function AnalyticsDashboard() {
             </svg>
           </div>
           <div className="analytics-card-info">
-            <span className="value">{totalDownloads}</span>
+            <span className="value">{totalDownloads || 0}</span>
             <span className="label">Offline Downloads</span>
           </div>
         </div>
@@ -102,7 +113,7 @@ function AnalyticsDashboard() {
         <section className="distribution-card">
           <h3>Resource Categories</h3>
           <p className="distribution-subtitle">Distribution of lesson sheets by format</p>
-          {categories.length === 0 ? (
+          {!categories || categories.length === 0 ? (
             <p className="no-data-text">No category data available.</p>
           ) : (
             <div className="chart-list">
@@ -131,7 +142,7 @@ function AnalyticsDashboard() {
         <section className="distribution-card">
           <h3>Subject Coverage</h3>
           <p className="distribution-subtitle">Materials shared across academic fields</p>
-          {subjects.length === 0 ? (
+          {!subjects || subjects.length === 0 ? (
             <p className="no-data-text">No subject data available.</p>
           ) : (
             <div className="chart-list">
@@ -160,7 +171,7 @@ function AnalyticsDashboard() {
         <section className="top-resources-card">
           <h3>Top Downloaded Resources</h3>
           <p className="distribution-subtitle">Most utilized worksheets and study materials</p>
-          {topResources.length === 0 ? (
+          {!topResources || topResources.length === 0 ? (
             <p className="no-data-text">No download records found.</p>
           ) : (
             <div className="top-resources-table">

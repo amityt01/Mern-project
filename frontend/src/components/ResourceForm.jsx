@@ -4,7 +4,7 @@ const CATEGORIES = ["Worksheet", "Lesson Plan", "Activity", "Study Guide"];
 const SUBJECTS = ["Math", "Science", "English", "Social Studies", "Other"];
 const GRADES = ["Primary", "Middle", "High"];
 
-function ResourceForm({ onSubmit, initialData, onCancel, submitText = "Share Resource" }) {
+function ResourceForm({ onSubmit, initialData, onCancel, isSaving = false, submitText = "Share Resource" }) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -50,6 +50,7 @@ function ResourceForm({ onSubmit, initialData, onCancel, submitText = "Share Res
           placeholder="e.g. Fractions Worksheet"
           value={formData.title}
           onChange={handleChange}
+          disabled={isSaving}
           required
         />
       </div>
@@ -63,6 +64,7 @@ function ResourceForm({ onSubmit, initialData, onCancel, submitText = "Share Res
           placeholder="e.g. Introduction to adding fractions with like denominators"
           value={formData.description}
           onChange={handleChange}
+          disabled={isSaving}
         />
       </div>
 
@@ -74,6 +76,7 @@ function ResourceForm({ onSubmit, initialData, onCancel, submitText = "Share Res
             name="category"
             value={formData.category}
             onChange={handleChange}
+            disabled={isSaving}
             required
           >
             {CATEGORIES.map((c) => (
@@ -91,6 +94,7 @@ function ResourceForm({ onSubmit, initialData, onCancel, submitText = "Share Res
             name="subject"
             value={formData.subject}
             onChange={handleChange}
+            disabled={isSaving}
             required
           >
             {SUBJECTS.map((s) => (
@@ -108,6 +112,7 @@ function ResourceForm({ onSubmit, initialData, onCancel, submitText = "Share Res
             name="gradeLevel"
             value={formData.gradeLevel}
             onChange={handleChange}
+            disabled={isSaving}
             required
           >
             {GRADES.map((g) => (
@@ -128,16 +133,23 @@ function ResourceForm({ onSubmit, initialData, onCancel, submitText = "Share Res
           value={formData.content}
           onChange={handleChange}
           rows={8}
+          disabled={isSaving}
           required
         />
       </div>
 
       <div className="form-actions">
-        <button type="button" className="btn-secondary" onClick={onCancel}>
+        <button type="button" className="btn-secondary" onClick={onCancel} disabled={isSaving}>
           Cancel
         </button>
-        <button type="submit" className="btn-primary">
-          {submitText}
+        <button type="submit" className="btn-primary" disabled={isSaving}>
+          {isSaving ? (
+            <>
+              <span className="btn-spinner" /> {submitText}
+            </>
+          ) : (
+            submitText
+          )}
         </button>
       </div>
     </form>

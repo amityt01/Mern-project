@@ -6,6 +6,8 @@ import AuthView from "./components/AuthView";
 import ResourcesView from "./components/ResourcesView";
 import FolderManager from "./components/FolderManager";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import UserProfile from "./components/UserProfile";
+import ToastContainer from "./components/Toast";
 import "./App.css";
 
 function App() {
@@ -18,6 +20,9 @@ function App() {
     if (token) {
       dispatch(loadUser())
         .unwrap()
+        .catch(() => {
+          // If token verification fails or backend is unreachable, authChecked still completes
+        })
         .finally(() => setAuthChecked(true));
     } else {
       setAuthChecked(true);
@@ -29,12 +34,16 @@ function App() {
       <div className="full-screen-loader">
         <div className="spinner"></div>
         <p>Loading EduReach Network...</p>
+        <span className="loader-subtext">Initializing teacher credentials & offline cache...</span>
       </div>
     );
   }
 
   return (
     <div className="app-container">
+      {/* Toast Notification Container */}
+      <ToastContainer />
+
       {/* Navigation */}
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
@@ -46,6 +55,7 @@ function App() {
           {activeTab === "resources" && <ResourcesView />}
           {activeTab === "folders" && <FolderManager />}
           {activeTab === "analytics" && <AnalyticsDashboard />}
+          {activeTab === "profile" && <UserProfile />}
         </main>
       )}
     </div>

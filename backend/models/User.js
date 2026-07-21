@@ -23,6 +23,29 @@ const userSchema = new mongoose.Schema({
     default: "General School",
     trim: true,
   },
+  role: {
+    type: String,
+    default: "Educator",
+    trim: true,
+  },
+  phone: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+  bio: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+  avatar: {
+    type: String,
+    default: "",
+  },
+  subjects: {
+    type: [String],
+    default: ["General"],
+  },
   createdAt: {
     type: Date,
     default: Date.now,

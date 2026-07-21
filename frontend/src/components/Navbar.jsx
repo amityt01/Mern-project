@@ -76,6 +76,12 @@ function Navbar({ activeTab, setActiveTab }) {
           >
             Analytics Dashboard
           </button>
+          <button
+            className={`nav-tab-btn ${activeTab === "profile" ? "active" : ""}`}
+            onClick={() => setActiveTab("profile")}
+          >
+            👤 My Profile
+          </button>
         </nav>
       )}
 
@@ -90,10 +96,23 @@ function Navbar({ activeTab, setActiveTab }) {
             <span>JWT Active</span>
           </button>
 
-          <div className="user-meta">
-            <span className="user-name">{user.name}</span>
-            <span className="user-school">{user.schoolName}</span>
-          </div>
+          <button
+            className={`user-meta-btn ${activeTab === "profile" ? "active" : ""}`}
+            onClick={() => setActiveTab("profile")}
+            title="View & Edit Profile"
+          >
+            <span className="user-avatar-sm">
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.name} />
+              ) : (
+                user.name ? user.name.charAt(0).toUpperCase() : "U"
+              )}
+            </span>
+            <div className="user-meta">
+              <span className="user-name">{user.name}</span>
+              <span className="user-school">{user.schoolName}</span>
+            </div>
+          </button>
 
           <button className="btn-logout" onClick={handleLogout} title="Log Out">
             <svg className="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
