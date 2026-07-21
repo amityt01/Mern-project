@@ -4,14 +4,28 @@ const User = require("../models/User");
 const authMiddleware = require("../middleware/auth");
 const { hashPassword, verifyPassword, generateToken } = require("../utils/authHelper");
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 6;
+
 // @route   POST /register
 // @desc    Register a teacher
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, schoolName } = req.body;
+    let { name, email, password, schoolName } = req.body;
 
     if (!name || !email || !password || !schoolName) {
       return res.status(400).json({ message: "Please enter all fields." });
+    }
+
+    email = email.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ message: "Please enter a valid email address (e.g. teacher@school.org)." });
+    }
+
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res
+        .status(400)
+        .json({ message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.` });
     }
 
     const existingUser = await User.findOne({ email });
@@ -22,10 +36,10 @@ router.post("/register", async (req, res) => {
     const hashedPassword = hashPassword(password);
 
     const newUser = await User.create({
-      name,
+      name: name.trim(),
       email,
       password: hashedPassword,
-      schoolName,
+      schoolName: schoolName.trim(),
     });
 
     const token = generateToken({
@@ -52,10 +66,15 @@ router.post("/register", async (req, res) => {
 // @desc    Login teacher and get token
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Please fill in all fields." });
+    }
+
+    email = email.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ message: "Please enter a valid email address." });
     }
 
     const user = await User.findOne({ email });

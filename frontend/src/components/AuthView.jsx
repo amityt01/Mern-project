@@ -16,12 +16,18 @@ function AuthView() {
   const dispatch = useDispatch();
   const { isLoading, error } = useSelector((state) => state.auth);
 
+  const [validationError, setValidationError] = useState("");
+
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   useEffect(() => {
     // Clear errors when toggling modes
     dispatch(clearAuthError());
+    setValidationError("");
   }, [isLogin, dispatch]);
 
   const handleChange = (e) => {
+    setValidationError("");
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
@@ -29,6 +35,7 @@ function AuthView() {
   };
 
   const handleQuickFill = (email, password, name = "", schoolName = "") => {
+    setValidationError("");
     setFormData({
       email,
       password,
@@ -42,10 +49,22 @@ function AuthView() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setValidationError("");
+
+    if (!EMAIL_REGEX.test(formData.email.trim())) {
+      setValidationError("Please enter a valid email address (e.g. teacher@school.org).");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setValidationError("Password must be at least 6 characters long.");
+      return;
+    }
+
     if (isLogin) {
-      dispatch(loginUser({ email: formData.email, password: formData.password }));
+      dispatch(loginUser({ email: formData.email.trim(), password: formData.password }));
     } else {
-      dispatch(registerUser(formData));
+      dispatch(registerUser({ ...formData, email: formData.email.trim() }));
     }
   };
 
@@ -87,7 +106,9 @@ function AuthView() {
           </button>
         </div>
 
-        {error && <div className="auth-error-banner">{error}</div>}
+        {(validationError || error) && (
+          <div className="auth-error-banner">{validationError || error}</div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="auth-form">
@@ -126,7 +147,9 @@ function AuthView() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">
+              Password <small style={{ opacity: 0.7, fontWeight: 400 }}>(min. 6 characters)</small>
+            </label>
             <div className="input-with-icon password-input-wrapper">
               <svg className="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -139,6 +162,7 @@ function AuthView() {
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
+                minLength={6}
                 required
               />
               <button
