@@ -62,9 +62,23 @@ const writeDB = (data) => {
 
 // Generic Mock Query Builder
 class MockQuery {
-  constructor(items, collectionName) {
+  constructor(items, collectionName, isSingle = false) {
     this.items = items;
     this.collectionName = collectionName;
+    this.isSingle = isSingle;
+    this.excludedFields = [];
+  }
+
+  select(fieldsStr) {
+    if (typeof fieldsStr === "string") {
+      const fields = fieldsStr.split(" ");
+      fields.forEach((f) => {
+        if (f.startsWith("-")) {
+          this.excludedFields.push(f.substring(1));
+        }
+      });
+    }
+    return this;
   }
 
   populate(path, select) {
@@ -130,13 +144,14 @@ class MockQuery {
       return copy;
     });
 
-    return new MockQuery(populated, this.collectionName);
+    this.items = populated;
+    return this;
   }
 
   sort(sortObj) {
     const key = Object.keys(sortObj)[0];
     const order = sortObj[key];
-    const sorted = [...this.items].sort((a, b) => {
+    this.items = [...this.items].sort((a, b) => {
       const valA = a[key];
       const valB = b[key];
       if (valA === undefined) return 1;
@@ -146,16 +161,29 @@ class MockQuery {
       }
       return order === -1 ? valB - valA : valA - valB;
     });
-    return new MockQuery(sorted, this.collectionName);
+    return this;
   }
 
   limit(num) {
-    return new MockQuery(this.items.slice(0, num), this.collectionName);
+    this.items = this.items.slice(0, num);
+    return this;
+  }
+
+  exec() {
+    return this;
   }
 
   then(onFulfilled, onRejected) {
-    const documents = this.items.map((item) => new MockDocument(item, this.collectionName, null));
-    return Promise.resolve().then(() => onFulfilled(documents), onRejected);
+    let documents = this.items.map((item) => {
+      const doc = new MockDocument(item, this.collectionName, null);
+      if (this.excludedFields.length > 0) {
+        this.excludedFields.forEach((field) => delete doc[field]);
+      }
+      return doc;
+    });
+
+    const result = this.isSingle ? (documents[0] || null) : documents;
+    return Promise.resolve().then(() => onFulfilled(result), onRejected);
   }
 }
 
@@ -174,7 +202,7 @@ class MockDocument {
 
   select(fieldsStr) {
     const copy = { ...this };
-    if (fieldsStr.startsWith("-")) {
+    if (typeof fieldsStr === "string" && fieldsStr.startsWith("-")) {
       const field = fieldsStr.substring(1);
       delete copy[field];
     }
@@ -271,20 +299,18 @@ class MockModel {
       });
     }
 
-    return new MockQuery(list, this.collectionName);
+    return new MockQuery(list, this.collectionName, false);
   }
 
-  async findOne(query) {
+  findOne(query) {
     const list = this.find(query).items;
-    if (list.length === 0) return null;
-    return new MockDocument(list[0], this.collectionName, this);
+    return new MockQuery(list.slice(0, 1), this.collectionName, true);
   }
 
-  async findById(id) {
-    if (!id) return null;
+  findById(id) {
+    if (!id) return new MockQuery([], this.collectionName, true);
     const item = this.getColl().find((u) => u._id.toString() === id.toString());
-    if (!item) return null;
-    return new MockDocument(item, this.collectionName, this);
+    return new MockQuery(item ? [item] : [], this.collectionName, true);
   }
 
   async findByIdAndUpdate(id, update, options = {}) {
