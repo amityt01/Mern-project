@@ -59,9 +59,18 @@ export const loadUser = createAsyncThunk(
   }
 );
 
+const getInitialUser = () => {
+  try {
+    const saved = localStorage.getItem("user");
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+
 const initialState = {
   token: localStorage.getItem("token") || null,
-  user: null,
+  user: getInitialUser(),
   isLoading: false,
   error: null,
 };
@@ -70,8 +79,31 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
+    setAuthCredentials: (state, action) => {
+      const { token, user } = action.payload;
+      state.token = token || null;
+      state.user = user
+        ? {
+            ...user,
+            id: user.id || user._id,
+            _id: user._id || user.id,
+          }
+        : null;
+      state.error = null;
+      if (token) {
+        localStorage.setItem("token", token);
+      } else {
+        localStorage.removeItem("token");
+      }
+      if (user) {
+        localStorage.setItem("user", JSON.stringify(user));
+      } else {
+        localStorage.removeItem("user");
+      }
+    },
     logoutUser: (state) => {
       localStorage.removeItem("token");
+      localStorage.removeItem("user");
       state.token = null;
       state.user = null;
       state.error = null;
@@ -90,18 +122,24 @@ const authSlice = createSlice({
       .addCase(registerUser.fulfilled, (state, action) => {
         state.isLoading = false;
         state.token = action.payload.token;
-        state.user = action.payload.user
+        const userData = action.payload.user
           ? {
               ...action.payload.user,
               id: action.payload.user.id || action.payload.user._id,
               _id: action.payload.user._id || action.payload.user.id,
             }
           : null;
-        localStorage.setItem("token", action.payload.token);
+        state.user = userData;
+        if (action.payload.token) {
+          localStorage.setItem("token", action.payload.token);
+        }
+        if (userData) {
+          localStorage.setItem("user", JSON.stringify(userData));
+        }
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        state.error = action.payload || "Registration failed. Please try again.";
       })
       // Login
       .addCase(loginUser.pending, (state) => {
@@ -111,18 +149,24 @@ const authSlice = createSlice({
       .addCase(loginUser.fulfilled, (state, action) => {
         state.isLoading = false;
         state.token = action.payload.token;
-        state.user = action.payload.user
+        const userData = action.payload.user
           ? {
               ...action.payload.user,
               id: action.payload.user.id || action.payload.user._id,
               _id: action.payload.user._id || action.payload.user.id,
             }
           : null;
-        localStorage.setItem("token", action.payload.token);
+        state.user = userData;
+        if (action.payload.token) {
+          localStorage.setItem("token", action.payload.token);
+        }
+        if (userData) {
+          localStorage.setItem("user", JSON.stringify(userData));
+        }
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        state.error = action.payload || "Invalid email or password. Please try again.";
       })
       // Load User
       .addCase(loadUser.pending, (state) => {
@@ -130,22 +174,25 @@ const authSlice = createSlice({
       })
       .addCase(loadUser.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload
-          ? {
-              ...action.payload,
-              id: action.payload.id || action.payload._id,
-              _id: action.payload._id || action.payload.id,
-            }
-          : null;
+        if (action.payload) {
+          const userData = {
+            ...action.payload,
+            id: action.payload.id || action.payload._id,
+            _id: action.payload._id || action.payload.id,
+          };
+          state.user = userData;
+          localStorage.setItem("user", JSON.stringify(userData));
+        }
       })
       .addCase(loadUser.rejected, (state) => {
         state.isLoading = false;
         state.token = null;
         state.user = null;
         localStorage.removeItem("token");
+        localStorage.removeItem("user");
       });
   },
 });
 
-export const { logoutUser, clearAuthError } = authSlice.actions;
+export const { setAuthCredentials, logoutUser, clearAuthError } = authSlice.actions;
 export default authSlice.reducer;
