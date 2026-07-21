@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
-const authMiddleware = require("../middleware/auth");
+const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 const { hashPassword, verifyPassword, generateToken } = require("../utils/authHelper");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -10,7 +10,7 @@ const MIN_PASSWORD_LENGTH = 6;
 // Helper handler for user sign-up / registration
 const handleSignUp = async (req, res) => {
   try {
-    let { name, email, password, schoolName } = req.body;
+    let { name, email, password, schoolName, role } = req.body;
 
     // 1. Validate required fields
     if (!name || !email || !password) {
@@ -47,22 +47,24 @@ const handleSignUp = async (req, res) => {
       });
     }
 
-    // 5. Create new user instance (password will be hashed via pre-save hook before saving)
+    // 5. Create new user instance
     const newUser = new User({
       name: name.trim(),
       email,
       password,
       schoolName: schoolName && schoolName.trim() ? schoolName.trim() : "General School",
+      role: role && ["Admin", "Educator", "Student"].includes(role) ? role : "Educator",
     });
 
     // 6. Save user document into MongoDB
     await newUser.save();
 
-    // 7. Generate authentication token
+    // 7. Generate authentication token including user role
     const token = generateToken({
       id: newUser._id,
       name: newUser.name,
       email: newUser.email,
+      role: newUser.role,
     });
 
     // 8. Return success response (HTTP 201 Created)
@@ -76,6 +78,7 @@ const handleSignUp = async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         schoolName: newUser.schoolName,
+        role: newUser.role,
         createdAt: newUser.createdAt,
       },
     });
@@ -121,10 +124,13 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password." });
     }
 
+    const userRole = user.role || "Educator";
+
     const token = generateToken({
       id: user._id,
       name: user.name,
       email: user.email,
+      role: userRole,
     });
 
     res.json({
@@ -134,6 +140,7 @@ router.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         schoolName: user.schoolName,
+        role: userRole,
       },
     });
   } catch (err) {
@@ -250,7 +257,53 @@ router.put("/change-password", authMiddleware, async (req, res) => {
       message: "Password updated successfully after identity verification!",
     });
   } catch (err) {
-    res.status(500).json({ message: err.message || "Failed to change password." });
+// ==================== ADMIN ROUTES ====================
+
+// @route   GET /users
+// @desc    Get list of all users (Admin only)
+router.get("/users", authMiddleware, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// @route   PUT /users/:id/role
+// @desc    Update a user's role (Admin only)
+router.put("/users/:id/role", authMiddleware, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!role || !["Admin", "Educator", "Student"].includes(role)) {
+      return res.status(400).json({ message: "Invalid role specified." });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// @route   DELETE /users/:id
+// @desc    Delete user account (Admin only)
+router.delete("/users/:id", authMiddleware, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    res.json({ message: "User account deleted successfully." });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

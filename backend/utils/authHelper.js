@@ -71,7 +71,11 @@ function verifyToken(token) {
 
     if (signature !== expectedSignature) return null;
 
-    return JSON.parse(base64urlDecode(encodedPayload));
+    const decoded = JSON.parse(base64urlDecode(encodedPayload));
+    if (decoded && decoded.exp && Date.now() >= decoded.exp * 1000) {
+      return null;
+    }
+    return decoded;
   } catch (err) {
     return null;
   }

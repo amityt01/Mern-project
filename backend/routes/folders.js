@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Folder = require("../models/Folder");
 const User = require("../models/User");
-const authMiddleware = require("../middleware/auth");
+const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 
 // Helper to check folder access
 const getFolderAccess = (folder, userId) => {

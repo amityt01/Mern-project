@@ -3,10 +3,11 @@ const router = express.Router();
 const Resource = require("../models/Resource");
 const Folder = require("../models/Folder");
 const User = require("../models/User");
+const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 
 // @route   GET /api/analytics
-// @desc    Get dashboard analytics
-router.get("/", async (req, res) => {
+// @desc    Get dashboard analytics (Admin, Educator)
+router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
     const totalResources = await Resource.countDocuments();
     const totalFolders = await Folder.countDocuments();

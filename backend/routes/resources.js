@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Resource = require("../models/Resource");
-const authMiddleware = require("../middleware/auth");
+const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 
 // @route   GET /api/resources
 // @desc    Get all resources with optional query filters (category, subject, gradeLevel, search)
@@ -42,8 +42,8 @@ router.get("/:id", async (req, res) => {
 });
 
 // @route   POST /api/resources
-// @desc    Create a resource (authenticated)
-router.post("/", authMiddleware, async (req, res) => {
+// @desc    Create a resource (Admin, Educator)
+router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
     const { title, description, category, subject, gradeLevel, content } = req.body;
 
@@ -69,16 +69,19 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 // @route   PUT /api/resources/:id
-// @desc    Update a resource (authenticated, must be the author)
-router.put("/:id", authMiddleware, async (req, res) => {
+// @desc    Update a resource (authenticated, must be author or Admin)
+router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
     let resource = await Resource.findById(req.params.id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
 
-    // Check ownership
-    if (resource.author.toString() !== req.user.id) {
+    // Check ownership or Admin role
+    const isOwner = resource.author.toString() === req.user.id;
+    const isAdmin = req.user.role === "Admin";
+
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: "Unauthorized. You can only edit your own resources." });
     }
 
@@ -95,16 +98,19 @@ router.put("/:id", authMiddleware, async (req, res) => {
 });
 
 // @route   DELETE /api/resources/:id
-// @desc    Delete a resource (authenticated, must be the author)
-router.delete("/:id", authMiddleware, async (req, res) => {
+// @desc    Delete a resource (authenticated, must be author or Admin)
+router.delete("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
     const resource = await Resource.findById(req.params.id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
 
-    // Check ownership
-    if (resource.author.toString() !== req.user.id) {
+    // Check ownership or Admin role
+    const isOwner = resource.author.toString() === req.user.id;
+    const isAdmin = req.user.role === "Admin";
+
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: "Unauthorized. You can only delete your own resources." });
     }
 
@@ -116,7 +122,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 });
 
 // @route   POST /api/resources/:id/download
-// @desc    Increment download/usage count for a resource (no auth required to facilitate sharing)
+// @desc    Increment download/usage count for a resource
 router.post("/:id/download", async (req, res) => {
   try {
     const resource = await Resource.findByIdAndUpdate(
