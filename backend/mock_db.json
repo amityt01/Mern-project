@@ -47,6 +47,14 @@
       "email": "newteacher_1784624569215@school.org",
       "password": "782c21e61489bc8e056fab9c47fbcf36:4c2d8bd8d901be59327bc041e6e4225d7d3084ba609e6467814199d90ea0607a9198794bcdfdbce343f9add0a3c483daeb407328a8bb89f459aa8d2ea6b128db",
       "schoolName": "Greenwood High"
+    },
+    {
+      "_id": "mock_erdf6ai5r",
+      "createdAt": "2026-07-21T09:28:00.338Z",
+      "name": "Test Teacher",
+      "email": "testuser_1784626080304@example.com",
+      "password": "e2059e3f9f2e788e5ac242fbd8a842ce:23821d102d9d4888689dbd379346a002bb5c969419e06f418bb0d90d9858c5edfb2f17e1f631e13792f832889c66513bf45c968b5e9d782dea0a310019fe45f6",
+      "schoolName": "Greenwood Academy"
     }
   ],
   "resources": [

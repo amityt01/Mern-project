@@ -13,10 +13,10 @@ const handleSignUp = async (req, res) => {
     let { name, email, password, schoolName } = req.body;
 
     // 1. Validate required fields
-    if (!name || !email || !password || !schoolName) {
+    if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Please enter all fields: name, email, password, and schoolName.",
+        message: "Please enter all required fields: name, email, and password.",
       });
     }
 
@@ -47,16 +47,16 @@ const handleSignUp = async (req, res) => {
       });
     }
 
-    // 5. Hash password before saving to database
-    const hashedPassword = hashPassword(password);
-
-    // 6. Create and store user in MongoDB
-    const newUser = await User.create({
+    // 5. Create new user instance (password will be hashed via pre-save hook before saving)
+    const newUser = new User({
       name: name.trim(),
       email,
-      password: hashedPassword,
-      schoolName: schoolName.trim(),
+      password,
+      schoolName: schoolName && schoolName.trim() ? schoolName.trim() : "General School",
     });
+
+    // 6. Save user document into MongoDB
+    await newUser.save();
 
     // 7. Generate authentication token
     const token = generateToken({
@@ -72,9 +72,11 @@ const handleSignUp = async (req, res) => {
       token,
       user: {
         id: newUser._id,
+        _id: newUser._id,
         name: newUser.name,
         email: newUser.email,
         schoolName: newUser.schoolName,
+        createdAt: newUser.createdAt,
       },
     });
   } catch (err) {
@@ -86,7 +88,7 @@ const handleSignUp = async (req, res) => {
   }
 };
 
-// @route   POST /api/auth/signup & POST /api/auth/register
+// @route   POST /api/auth/signup, /api/auth/register, /signup, /register
 // @desc    Register / Sign-up user and store in MongoDB
 router.post("/signup", handleSignUp);
 router.post("/register", handleSignUp);
@@ -111,7 +113,10 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password." });
     }
 
-    const isMatch = verifyPassword(password, user.password);
+    const isMatch = typeof user.matchPassword === "function" 
+      ? user.matchPassword(password) 
+      : verifyPassword(password, user.password);
+
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid email or password." });
     }

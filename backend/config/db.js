@@ -346,6 +346,34 @@ class MockModel {
     return { _id: id };
   }
 
+  async deleteOne(query) {
+    const list = this.getColl();
+    const idx = list.findIndex((u) => {
+      for (let k in query) {
+        if (u[k] !== query[k]) return false;
+      }
+      return true;
+    });
+    if (idx !== -1) {
+      list.splice(idx, 1);
+      this.saveColl(list);
+    }
+    return { deletedCount: idx !== -1 ? 1 : 0 };
+  }
+
+  async deleteMany(query) {
+    let list = this.getColl();
+    const initialLen = list.length;
+    list = list.filter((u) => {
+      for (let k in query) {
+        if (u[k] === query[k]) return false;
+      }
+      return true;
+    });
+    this.saveColl(list);
+    return { deletedCount: initialLen - list.length };
+  }
+
   async create(data) {
     const list = this.getColl();
     const newDoc = {
@@ -406,27 +434,19 @@ class MockModel {
 
 const connectDB = async () => {
   const uri = process.env.MONGO_URI || process.env.MONGO_URL;
-  console.log("Validating MongoDB connection to:", uri);
+  console.log("Connecting to MongoDB Atlas URI:", uri);
 
-  let isConnected = false;
   try {
-    // Run quick sync verification using child process of test-db.js
-    execSync(`node "${path.join(__dirname, "../test-db.js")}"`, { stdio: "ignore", timeout: 4000 });
-    isConnected = true;
-  } catch (err) {
-    console.log("MongoDB connection check failed. Falling back to local offline mock database.");
-  }
-
-  if (isConnected) {
     try {
       dns.setServers(["8.8.8.8", "1.1.1.1"]);
-      await mongoose.connect(uri);
-      console.log("MongoDB Connected Successfully");
-    } catch (error) {
-      console.log("MongoDB connection error after validation:", error.message);
-      setupMockMongoose();
+    } catch (e) {
+      // Ignore dns setServers error if custom DNS is locked
     }
-  } else {
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
+    console.log("MongoDB Connected Successfully to cloud Atlas database!");
+  } catch (error) {
+    console.log("MongoDB connection error:", error.message);
+    console.log("Falling back to local mock database.");
     setupMockMongoose();
   }
 };
