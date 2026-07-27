@@ -25,6 +25,7 @@ const initialState = {
     categories: [],
     subjects: [],
     topResources: [],
+    resourcesByDate: [],
   },
   isLoading: false,
   error: null,

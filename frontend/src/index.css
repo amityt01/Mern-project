@@ -1508,6 +1508,10 @@ body {
   background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
 }
 
+.chart-bar.bg-amber {
+  background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+}
+
 .top-resources-card {
   grid-column: span 2;
 }

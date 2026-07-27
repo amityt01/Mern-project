@@ -402,7 +402,19 @@ class MockModel {
         let key = null;
         if (typeof idField === "string" && idField.startsWith("$")) {
           key = item[idField.substring(1)];
+        } else if (typeof idField === "object" && idField !== null) {
+          if (idField.$dateToString) {
+            const fieldName = idField.$dateToString.date ? idField.$dateToString.date.replace(/^\$/, "") : "createdAt";
+            const dateVal = item[fieldName];
+            if (dateVal) {
+              const d = new Date(dateVal);
+              key = !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : String(dateVal);
+            } else {
+              key = "Unknown";
+            }
+          }
         }
+
         if (!result[key]) {
           result[key] = { _id: key };
           for (let field in group) {
@@ -426,7 +438,22 @@ class MockModel {
           }
         }
       });
-      return Object.values(result);
+
+      let resList = Object.values(result);
+      const sortStage = pipeline.find((stage) => stage.$sort);
+      if (sortStage) {
+        const sortKey = Object.keys(sortStage.$sort)[0];
+        const sortOrder = sortStage.$sort[sortKey];
+        resList.sort((a, b) => {
+          const valA = a[sortKey] !== undefined ? a[sortKey] : "";
+          const valB = b[sortKey] !== undefined ? b[sortKey] : "";
+          if (valA < valB) return -1 * sortOrder;
+          if (valA > valB) return 1 * sortOrder;
+          return 0;
+        });
+      }
+
+      return resList;
     }
     return [];
   }

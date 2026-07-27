@@ -44,6 +44,22 @@ router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req,
       }
     ]);
 
+    // Resource aggregation by date for charting
+    const dateStats = await Resource.aggregate([
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    const resourcesByDate = dateStats.map((item) => ({
+      date: item._id || "Unknown",
+      count: item.count
+    }));
+
     // Top downloaded resources
     const topResources = await Resource.find()
       .populate("author", "name schoolName")
@@ -57,7 +73,8 @@ router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req,
       totalDownloads,
       categories: categoryStats,
       subjects: subjectStats,
-      topResources
+      topResources,
+      resourcesByDate
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

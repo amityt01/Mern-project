@@ -39,11 +39,12 @@ function AnalyticsDashboard() {
     );
   }
 
-  const { totalResources, totalFolders, totalTeachers, totalDownloads, categories, subjects, topResources } = data || {};
+  const { totalResources, totalFolders, totalTeachers, totalDownloads, categories, subjects, topResources, resourcesByDate } = data || {};
 
   // Max counts for scale calculations
   const maxCategoryCount = categories && categories.length > 0 ? Math.max(...categories.map((c) => c.count)) : 1;
   const maxSubjectCount = subjects && subjects.length > 0 ? Math.max(...subjects.map((s) => s.count)) : 1;
+  const maxDateCount = resourcesByDate && resourcesByDate.length > 0 ? Math.max(...resourcesByDate.map((d) => d.count)) : 1;
 
   return (
     <div className="analytics-dashboard">
@@ -157,6 +158,35 @@ function AnalyticsDashboard() {
                     <div className="chart-bar-container">
                       <div
                         className="chart-bar bg-emerald"
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Resource Creation by Date */}
+        <section className="distribution-card">
+          <h3>Resource Publishing Trend</h3>
+          <p className="distribution-subtitle">Volume of new resources uploaded by date</p>
+          {!resourcesByDate || resourcesByDate.length === 0 ? (
+            <p className="no-data-text">No publication date records available.</p>
+          ) : (
+            <div className="chart-list">
+              {resourcesByDate.map((d) => {
+                const percentage = Math.round((d.count / maxDateCount) * 100);
+                return (
+                  <div key={d.date} className="chart-item">
+                    <div className="chart-item-header">
+                      <span>{d.date}</span>
+                      <span><strong>{d.count}</strong> items</span>
+                    </div>
+                    <div className="chart-bar-container">
+                      <div
+                        className="chart-bar bg-amber"
                         style={{ width: `${percentage}%` }}
                       ></div>
                     </div>
