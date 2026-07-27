@@ -31,17 +31,21 @@ function ResourcesView() {
   const [selectedResource, setSelectedResource] = useState(null);
   const [folderToAdd, setFolderToAdd] = useState("");
   const [modalError, setModalError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
 
   useEffect(() => {
     dispatch(fetchResources(filters));
   }, [filters, dispatch]);
 
   const handleFilterChange = (e) => {
+    setCurrentPage(1);
     dispatch(setFilters({ [e.target.name]: e.target.value }));
   };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setCurrentPage(1);
     dispatch(fetchResources(filters));
   };
 
@@ -315,8 +319,10 @@ function ResourcesView() {
 
             <h2>{selectedResource.title}</h2>
             <div className="resource-meta-details">
+              <span><strong>Category:</strong> {selectedResource.category}</span>
               <span><strong>Subject:</strong> {selectedResource.subject}</span>
               <span><strong>Grade:</strong> {selectedResource.gradeLevel}</span>
+              <span><strong>Upload Date:</strong> {selectedResource.createdAt ? new Date(selectedResource.createdAt).toLocaleDateString() : "N/A"}</span>
               <span><strong>Downloads:</strong> {selectedResource.downloadCount}</span>
             </div>
 
@@ -424,84 +430,148 @@ function ResourcesView() {
             <span>Click 'Share Resource' to upload the first one.</span>
           </div>
         ) : (
-          <div className="resources-grid">
-            {resources.map((resource) => {
-              const isOwner = user && resource.author?._id === user.id;
-              const firstLetter = resource.author?.name ? resource.author.name.charAt(0).toUpperCase() : "?";
-              const colors = ["avatar-pink", "avatar-purple", "avatar-blue", "avatar-teal", "avatar-orange"];
-              const charCode = firstLetter.charCodeAt(0) || 0;
-              const avatarClass = colors[charCode % colors.length];
-              const isDeleting = deletingId === resource._id;
+          <>
+            <div className="resources-grid">
+              {(() => {
+                const totalPages = Math.ceil(resources.length / ITEMS_PER_PAGE);
+                const validPage = Math.min(currentPage, Math.max(totalPages, 1));
+                const startIndex = (validPage - 1) * ITEMS_PER_PAGE;
+                const currentResources = resources.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-              return (
-                <div
-                  key={resource._id}
-                  className={`resource-card ${isDeleting ? "card-deleting" : ""}`}
-                  onClick={() => handleResourceClick(resource)}
+                return currentResources.map((resource) => {
+                  const isOwner = user && resource.author?._id === user.id;
+                  const firstLetter = resource.author?.name ? resource.author.name.charAt(0).toUpperCase() : "?";
+                  const colors = ["avatar-pink", "avatar-purple", "avatar-blue", "avatar-teal", "avatar-orange"];
+                  const charCode = firstLetter.charCodeAt(0) || 0;
+                  const avatarClass = colors[charCode % colors.length];
+                  const isDeleting = deletingId === resource._id;
+                  const formattedDate = resource.createdAt
+                    ? new Date(resource.createdAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "N/A";
+
+                  return (
+                    <div
+                      key={resource._id}
+                      className={`resource-card ${isDeleting ? "card-deleting" : ""}`}
+                      onClick={() => handleResourceClick(resource)}
+                    >
+                      {isDeleting && (
+                        <div className="card-deleting-overlay">
+                          <span className="btn-spinner" />
+                          <span>Deleting...</span>
+                        </div>
+                      )}
+
+                      <div className="card-header">
+                        <span className={`category-tag ${resource.category.toLowerCase().replace(/\s+/g, "-")}`}>
+                          {resource.category}
+                        </span>
+                        <span className="badge">{resource.gradeLevel}</span>
+                      </div>
+
+                      <h3>{resource.title}</h3>
+                      <p className="card-desc">{resource.description || "No description provided."}</p>
+
+                      <div className="card-metadata">
+                        <div className="author-tag">
+                          <div className={`avatar ${avatarClass} avatar-sm`}>
+                            {firstLetter}
+                          </div>
+                          <div className="author-info">
+                            <span>{resource.author?.name || "Educator"}</span>
+                            <span className="school-tag">{resource.author?.schoolName || "School"}</span>
+                          </div>
+                        </div>
+                        <div className="upload-date-tag" title="Upload Date">
+                          <svg className="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                          </svg>
+                          <span>{formattedDate}</span>
+                        </div>
+                      </div>
+
+                      <div className="card-footer">
+                        <span className="subject-badge">{resource.subject}</span>
+                        <div className="stats-tag">
+                          <svg className="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                          {resource.downloadCount}
+                        </div>
+                      </div>
+
+                      {isOwner && (
+                        <div className="card-owner-actions">
+                          <button
+                            className="btn-icon btn-edit"
+                            onClick={(e) => openEditModal(resource, e)}
+                            disabled={isDeleting}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn-icon btn-delete"
+                            onClick={(e) => handleDelete(resource._id, resource.title, e)}
+                            disabled={isDeleting}
+                          >
+                            {isDeleting ? "..." : "Delete"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {Math.ceil(resources.length / ITEMS_PER_PAGE) > 1 && (
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  className="btn-pagination"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 >
-                  {isDeleting && (
-                    <div className="card-deleting-overlay">
-                      <span className="btn-spinner" />
-                      <span>Deleting...</span>
-                    </div>
-                  )}
+                  &laquo; Previous
+                </button>
 
-                  <div className="card-header">
-                    <span className={`category-tag ${resource.category.toLowerCase().replace(/\s+/g, "-")}`}>
-                      {resource.category}
-                    </span>
-                    <span className="badge">{resource.gradeLevel}</span>
-                  </div>
-
-                  <h3>{resource.title}</h3>
-                  <p className="card-desc">{resource.description || "No description provided."}</p>
-
-                  <div className="card-metadata">
-                    <div className="author-tag">
-                      <div className={`avatar ${avatarClass} avatar-sm`}>
-                        {firstLetter}
-                      </div>
-                      <div className="author-info">
-                        <span>{resource.author?.name || "Educator"}</span>
-                        <span className="school-tag">{resource.author?.schoolName || "School"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="card-footer">
-                    <span className="subject-badge">{resource.subject}</span>
-                    <div className="stats-tag">
-                      <svg className="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" />
-                        <line x1="12" y1="15" x2="12" y2="3" />
-                      </svg>
-                      {resource.downloadCount}
-                    </div>
-                  </div>
-
-                  {isOwner && (
-                    <div className="card-owner-actions">
+                <div className="pagination-numbers">
+                  {Array.from({ length: Math.ceil(resources.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map(
+                    (pageNum) => (
                       <button
-                        className="btn-icon btn-edit"
-                        onClick={(e) => openEditModal(resource, e)}
-                        disabled={isDeleting}
+                        key={pageNum}
+                        type="button"
+                        className={`btn-page-number ${currentPage === pageNum ? "active" : ""}`}
+                        onClick={() => setCurrentPage(pageNum)}
                       >
-                        Edit
+                        {pageNum}
                       </button>
-                      <button
-                        className="btn-icon btn-delete"
-                        onClick={(e) => handleDelete(resource._id, resource.title, e)}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? "..." : "Delete"}
-                      </button>
-                    </div>
+                    )
                   )}
                 </div>
-              );
-            })}
-          </div>
+
+                <button
+                  type="button"
+                  className="btn-pagination"
+                  disabled={currentPage === Math.ceil(resources.length / ITEMS_PER_PAGE)}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(resources.length / ITEMS_PER_PAGE)))
+                  }
+                >
+                  Next &raquo;
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>
