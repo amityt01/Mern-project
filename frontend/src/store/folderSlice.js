@@ -81,6 +81,52 @@ export const shareFolder = createAsyncThunk(
   }
 );
 
+export const inviteUserToFolder = createAsyncThunk(
+  "folders/inviteUserToFolder",
+  async ({ id, userId, email, permission }, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const body = {};
+      if (userId) body.userId = userId;
+      if (email) body.email = email;
+      if (permission) body.permission = permission;
+
+      const url = userId ? `${API_BASE}/folders/${id}/invite/${userId}` : `${API_BASE}/folders/${id}/invite`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to invite user");
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
+export const removeUserFromFolder = createAsyncThunk(
+  "folders/removeUserFromFolder",
+  async ({ id, userId }, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const response = await fetch(`${API_BASE}/folders/${id}/invite/${userId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to remove user from folder");
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
 export const addResourceToFolder = createAsyncThunk(
   "folders/addResourceToFolder",
   async ({ id, resourceId }, { getState, rejectWithValue }) => {
@@ -236,6 +282,41 @@ const folderSlice = createSlice({
       })
       .addCase(shareFolder.rejected, (state, action) => {
         state.isSharing = false;
+        state.error = action.payload;
+      })
+
+      // Invite User to Folder
+      .addCase(inviteUserToFolder.pending, (state) => {
+        state.isSharing = true;
+        state.error = null;
+      })
+      .addCase(inviteUserToFolder.fulfilled, (state, action) => {
+        state.isSharing = false;
+        state.folders = state.folders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+        state.sharedFolders = state.sharedFolders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+      })
+      .addCase(inviteUserToFolder.rejected, (state, action) => {
+        state.isSharing = false;
+        state.error = action.payload;
+      })
+
+      // Remove User from Folder
+      .addCase(removeUserFromFolder.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(removeUserFromFolder.fulfilled, (state, action) => {
+        state.folders = state.folders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+        state.sharedFolders = state.sharedFolders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+      })
+      .addCase(removeUserFromFolder.rejected, (state, action) => {
         state.error = action.payload;
       })
 

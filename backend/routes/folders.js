@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Folder = require("../models/Folder");
 const User = require("../models/User");
 const { authMiddleware, authorizeRoles } = require("../middleware/auth");
@@ -277,5 +278,153 @@ router.delete("/:id/resources/:resourceId", authMiddleware, async (req, res) => 
     res.status(500).json({ message: err.message });
   }
 });
+
+// @route   POST /api/folders/:id/invite
+// @route   POST /api/folders/:id/invite/:userId
+// @desc    Invite a user to a collaborative folder
+const inviteUserHandler = async (req, res) => {
+  try {
+    const folderId = req.params.id || req.params.folderId;
+    let userId = req.params.userId || req.body.userId || req.body.user || req.body.id;
+    const email = req.body.email;
+    const permission = req.body.permission || "read";
+
+    // Validate folder ID format
+    if (!folderId || !mongoose.isValidObjectId(folderId)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
+    // Validate user ID or email presence and format
+    if (!userId && !email) {
+      return res.status(400).json({ message: "User ID or email is required for invitation." });
+    }
+
+    if (userId && !mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ message: "Invalid user ID format." });
+    }
+
+    // Check if folder exists
+    const folder = await Folder.findById(folderId);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    // Authorize: Only folder owner (or Admin) can invite users
+    const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner.toString();
+    if (ownerId !== req.user.id && req.user.role !== "Admin") {
+      return res.status(403).json({ message: "Only the folder owner can invite users to this folder." });
+    }
+
+    // Find target user
+    let targetUser = null;
+    if (userId) {
+      targetUser = await User.findById(userId);
+    } else if (email) {
+      targetUser = await User.findOne({ email: email.toLowerCase() });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Prevent self-invitation
+    if (targetUser._id.toString() === req.user.id) {
+      return res.status(400).json({ message: "You cannot invite yourself to your own folder." });
+    }
+
+    // Prevent duplicate invitations
+    const isAlreadyInvited = folder.sharedWith.some((s) => {
+      if (!s.user) return false;
+      const sUserId = s.user._id ? s.user._id.toString() : s.user.toString();
+      return sUserId === targetUser._id.toString();
+    });
+
+    if (isAlreadyInvited) {
+      return res.status(400).json({ message: "User is already invited to this folder." });
+    }
+
+    folder.sharedWith.push({ user: targetUser._id, permission });
+    await folder.save();
+
+    const updatedFolder = await Folder.findById(folderId)
+      .populate("owner", "name schoolName email")
+      .populate("sharedWith.user", "name schoolName email")
+      .populate("resources");
+
+    return res.status(200).json(updatedFolder);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// @route   DELETE /api/folders/:id/invite/:userId
+// @route   DELETE /api/folders/:id/remove/:userId
+// @route   DELETE /api/folders/:id/collaborators/:userId
+// @route   DELETE /api/folders/:id/share/:userId
+// @route   DELETE /api/folders/:id/users/:userId
+// @desc    Remove a user from a collaborative folder
+const removeUserHandler = async (req, res) => {
+  try {
+    const folderId = req.params.id || req.params.folderId;
+    const userId = req.params.userId || req.body.userId || req.query.userId || req.body.user;
+
+    // Validate folder ID format
+    if (!folderId || !mongoose.isValidObjectId(folderId)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
+    // Validate user ID format
+    if (!userId || !mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ message: "Invalid user ID format." });
+    }
+
+    // Check if folder exists
+    const folder = await Folder.findById(folderId);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    // Authorize: Only folder owner (or Admin or user removing self) can remove user
+    const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner.toString();
+    if (ownerId !== req.user.id && req.user.role !== "Admin" && req.user.id !== userId.toString()) {
+      return res.status(403).json({ message: "Only the folder owner can remove users from this folder." });
+    }
+
+    const existingIndex = folder.sharedWith.findIndex((s) => {
+      if (!s.user) return false;
+      const sUserId = s.user._id ? s.user._id.toString() : s.user.toString();
+      return sUserId === userId.toString();
+    });
+
+    if (existingIndex === -1) {
+      return res.status(404).json({ message: "User is not a collaborator on this folder." });
+    }
+
+    folder.sharedWith.splice(existingIndex, 1);
+    await folder.save();
+
+    const updatedFolder = await Folder.findById(folderId)
+      .populate("owner", "name schoolName email")
+      .populate("sharedWith.user", "name schoolName email")
+      .populate("resources");
+
+    return res.status(200).json(updatedFolder);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// Route registrations for Invite
+router.post("/:id/invite", authMiddleware, inviteUserHandler);
+router.post("/:id/invite/:userId", authMiddleware, inviteUserHandler);
+router.post("/:id/collaborators", authMiddleware, inviteUserHandler);
+
+// Route registrations for Remove
+router.delete("/:id/invite/:userId", authMiddleware, removeUserHandler);
+router.delete("/:id/collaborators/:userId", authMiddleware, removeUserHandler);
+router.delete("/:id/remove/:userId", authMiddleware, removeUserHandler);
+router.delete("/:id/share/:userId", authMiddleware, removeUserHandler);
+router.delete("/:id/users/:userId", authMiddleware, removeUserHandler);
+router.delete("/:id/invite", authMiddleware, removeUserHandler);
 
 module.exports = router;
