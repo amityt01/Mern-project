@@ -3,6 +3,17 @@ const router = express.Router();
 const Resource = require("../models/Resource");
 const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 const upload = require("../middleware/upload");
+const { exportUsageCsv } = require("./analytics");
+
+// @route   GET /api/resources/export
+// @route   GET /api/resources/export-csv
+// @route   GET /api/resources/csv
+// @desc    Generate and download CSV usage report for resources within selected date range
+if (exportUsageCsv) {
+  router.get("/export", exportUsageCsv);
+  router.get("/export-csv", exportUsageCsv);
+  router.get("/csv", exportUsageCsv);
+}
 
 // @route   GET /api/resources
 // @desc    Get all resources with optional query filters (category, subject, gradeLevel, search)

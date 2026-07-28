@@ -80,6 +80,34 @@ function AnalyticsDashboard() {
     }
   };
 
+  const handleExportCsv = async () => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (startDate) queryParams.append("startDate", startDate);
+      if (endDate) queryParams.append("endDate", endDate);
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
+
+      const res = await fetch(`http://localhost:5050/api/analytics/export${queryString}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || "Failed to generate CSV usage report.");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `resource_usage_report_${startDate || "all"}_to_${endDate || "all"}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download CSV usage report:", err);
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await dispatch(fetchAnalytics({ startDate, endDate }));
@@ -227,6 +255,20 @@ function AnalyticsDashboard() {
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
             </svg>
             <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+          </button>
+
+          <button
+            className="btn-primary btn-export-csv"
+            onClick={handleExportCsv}
+            title="Export CSV Usage Report"
+            type="button"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon-sm">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Export CSV</span>
           </button>
         </div>
       </div>

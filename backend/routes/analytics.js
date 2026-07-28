@@ -18,10 +18,148 @@ const optionalAuth = (req, res, next) => {
 };
 
 /**
+ * Helper function to safely escape CSV fields according to RFC 4180 rules.
+ */
+const escapeCsvField = (field) => {
+  if (field === null || field === undefined) return '""';
+  const str = String(field);
+  return `"${str.replace(/"/g, '""')}"`;
+};
+
+/**
+ * Handler function to generate and return a downloadable CSV usage report.
+ */
+const exportUsageCsv = async (req, res) => {
+  try {
+    const { startDate, endDate, category, subject, gradeLevel } = req.query;
+    const resourceFilter = {};
+
+    // Validate startDate if provided
+    if (startDate) {
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid startDate format. Please provide a valid date string (e.g. YYYY-MM-DD)."
+        });
+      }
+      start.setHours(0, 0, 0, 0);
+      resourceFilter.createdAt = resourceFilter.createdAt || {};
+      resourceFilter.createdAt.$gte = start;
+    }
+
+    // Validate endDate if provided
+    if (endDate) {
+      const end = new Date(endDate);
+      if (isNaN(end.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid endDate format. Please provide a valid date string (e.g. YYYY-MM-DD)."
+        });
+      }
+      end.setHours(23, 59, 59, 999);
+      resourceFilter.createdAt = resourceFilter.createdAt || {};
+      resourceFilter.createdAt.$lte = end;
+    }
+
+    // Validate date order if both are provided
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (start > end) {
+        return res.status(400).json({
+          success: false,
+          message: "Start date cannot be after end date."
+        });
+      }
+    }
+
+    // Optional categorization query filters
+    if (category) {
+      resourceFilter.category = category;
+    }
+    if (subject) {
+      resourceFilter.subject = subject;
+    }
+    if (gradeLevel) {
+      resourceFilter.gradeLevel = gradeLevel;
+    }
+
+    // Query resources matching filter criteria
+    const resources = await Resource.find(resourceFilter)
+      .populate("author", "name schoolName email")
+      .sort({ createdAt: -1 });
+
+    const headers = [
+      "Resource ID",
+      "Title",
+      "Category",
+      "Subject",
+      "Grade Level",
+      "Author Name",
+      "School Name",
+      "Download Count",
+      "File Size (Bytes)",
+      "Created Date"
+    ];
+
+    const csvRows = [headers.map(escapeCsvField).join(",")];
+
+    resources.forEach((resItem) => {
+      const authorName = resItem.author ? (resItem.author.name || "Unknown") : "Unknown";
+      const schoolName = resItem.author ? (resItem.author.schoolName || "N/A") : "N/A";
+      const createdDateStr = resItem.createdAt
+        ? new Date(resItem.createdAt).toISOString().split("T")[0]
+        : "";
+
+      const row = [
+        resItem._id || resItem.id || "",
+        resItem.title || "",
+        resItem.category || "",
+        resItem.subject || "",
+        resItem.gradeLevel || "",
+        authorName,
+        schoolName,
+        resItem.downloadCount || 0,
+        resItem.fileSize || 0,
+        createdDateStr
+      ];
+      csvRows.push(row.map(escapeCsvField).join(","));
+    });
+
+    const csvContent = csvRows.join("\n");
+
+    let filename = "resource_usage_report.csv";
+    if (startDate && endDate) {
+      filename = `resource_usage_report_${startDate}_to_${endDate}.csv`;
+    } else if (startDate) {
+      filename = `resource_usage_report_from_${startDate}.csv`;
+    } else if (endDate) {
+      filename = `resource_usage_report_until_${endDate}.csv`;
+    }
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.status(200).send(csvContent);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate CSV usage report",
+      error: err.message
+    });
+  }
+};
+
+/**
  * Handler function to calculate and return Resource Usage Overview Dashboard statistics.
  */
 const getUsageOverview = async (req, res) => {
   try {
+    // If format=csv is requested via query string, delegate to CSV export handler
+    if (req.query && req.query.format === "csv") {
+      return exportUsageCsv(req, res);
+    }
+
     const { startDate, endDate, category, subject, gradeLevel } = req.query;
     const resourceFilter = {};
 
@@ -215,5 +353,24 @@ router.get("/overview", optionalAuth, getUsageOverview);
 router.get("/usage", optionalAuth, getUsageOverview);
 router.get("/resource-usage", optionalAuth, getUsageOverview);
 
+// @route   GET /api/analytics/export
+// @route   GET /api/analytics/export-csv
+// @route   GET /api/analytics/export/csv
+// @route   GET /api/analytics/csv
+// @route   GET /api/analytics/report/csv
+// @route   GET /api/analytics/reports/csv
+// @route   GET /api/analytics/download
+// @desc    Generate and download CSV usage report for resources within selected date range
+router.get("/export", optionalAuth, exportUsageCsv);
+router.get("/export-csv", optionalAuth, exportUsageCsv);
+router.get("/export/csv", optionalAuth, exportUsageCsv);
+router.get("/csv", optionalAuth, exportUsageCsv);
+router.get("/report/csv", optionalAuth, exportUsageCsv);
+router.get("/reports/csv", optionalAuth, exportUsageCsv);
+router.get("/download", optionalAuth, exportUsageCsv);
+
+router.exportUsageCsv = exportUsageCsv;
+
 module.exports = router;
+
 
