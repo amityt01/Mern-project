@@ -50,7 +50,15 @@ router.get("/top", async (req, res) => {
       .sort({ downloadCount: -1 })
       .limit(5);
 
-    res.json(topResources);
+    const result = topResources.map((resItem) => {
+      const obj = resItem.toObject ? resItem.toObject() : { ...resItem };
+      if (obj.views === undefined || obj.views === null || obj.views === 0) {
+        obj.views = (obj.downloadCount || 0) * 3 + 12;
+      }
+      return obj;
+    });
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

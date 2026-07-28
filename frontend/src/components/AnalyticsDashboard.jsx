@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchAnalytics } from "../store/analyticsSlice";
 import { AnalyticsSkeleton } from "./SkeletonLoader";
 import AnalyticsLineChart from "./AnalyticsLineChart";
+import TopPerformingResources from "./TopPerformingResources";
 
 function AnalyticsDashboard() {
   const dispatch = useDispatch();
@@ -543,75 +544,13 @@ function AnalyticsDashboard() {
           )}
         </section>
 
-        {/* Top Downloaded Resources Table (Full Width Spanning Card) */}
-        <section className="top-resources-card">
-          <div className="card-section-header top-resources-header">
-            <div>
-              <h3>Top Downloaded Resources</h3>
-              <p className="distribution-subtitle">Most utilized worksheets and study materials in rural classrooms</p>
-            </div>
-            <div className="top-resources-search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="search-icon-sm">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Filter top materials..."
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {!filteredTopResources || filteredTopResources.length === 0 ? (
-            <p className="no-data-text">
-              {searchFilter ? "No materials matched your search query." : "No download records found."}
-            </p>
-          ) : (
-            <div className="top-resources-table">
-              <div className="table-header-row">
-                <span>Rank & Title</span>
-                <span>Author / School</span>
-                <span>Subject</span>
-                <span>Total Downloads</span>
-              </div>
-              {filteredTopResources.map((resource, index) => {
-                const rankClass = index === 0 ? "rank-gold" : index === 1 ? "rank-silver" : index === 2 ? "rank-bronze" : "rank-standard";
-                return (
-                  <div key={resource._id} className="table-data-row">
-                    <div className="resource-title-cell-group">
-                      <span className={`rank-badge ${rankClass}`}>#{index + 1}</span>
-                      <div className="title-sub-info">
-                        <span className="resource-title-cell">{resource.title}</span>
-                        <span className="resource-category-chip">{resource.category || "General"}</span>
-                      </div>
-                    </div>
-
-                    <div className="author-cell-group">
-                      <span className="author-avatar-chip">
-                        {resource.author?.name ? resource.author.name.charAt(0).toUpperCase() : "A"}
-                      </span>
-                      <div className="author-text">
-                        <span className="author-name">{resource.author?.name || "Anonymous Educator"}</span>
-                        <span className="author-school">{resource.author?.schoolName || "Rural Academy"}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className="subject-tag-pill">{resource.subject}</span>
-                    </div>
-
-                    <div className="downloads-cell-group">
-                      <span className="downloads-cell">{resource.downloadCount}</span>
-                      <span className="download-label">downloads</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        {/* Top Performing Resources Component */}
+        <TopPerformingResources
+          resources={topResources}
+          isLoading={isLoading}
+          error={error}
+          onRefresh={handleRefresh}
+        />
       </div>
     </div>
   );

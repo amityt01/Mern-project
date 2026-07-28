@@ -38,6 +38,10 @@ const resourceSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  views: {
+    type: Number,
+    default: 0,
+  },
   fileName: {
     type: String,
     default: "",

@@ -2241,10 +2241,15 @@ body {
   color: #818cf8;
 }
 
-.downloads-cell-group {
+.downloads-cell-group, .views-cell-group {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+}
+
+.table-header-row.top-performing-grid,
+.table-data-row.top-performing-grid {
+  grid-template-columns: 3fr 2fr 1.2fr 1fr 1fr;
 }
 
 .downloads-cell {
@@ -2253,9 +2258,19 @@ body {
   color: var(--accent-success);
 }
 
-.download-label {
+.download-label, .view-label {
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+@media (max-width: 850px) {
+  .table-header-row.top-performing-grid,
+  .table-data-row.top-performing-grid {
+    grid-template-columns: 2fr 1fr 80px 80px;
+  }
+  .author-cell-group {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
