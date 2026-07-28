@@ -9,12 +9,32 @@ const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 // @desc    Get dashboard analytics (Admin, Educator)
 router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
-    const totalResources = await Resource.countDocuments();
+    const { startDate, endDate } = req.query;
+    const resourceFilter = {};
+
+    if (startDate || endDate) {
+      resourceFilter.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        resourceFilter.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        resourceFilter.createdAt.$lte = end;
+      }
+    }
+
+    const totalResources = await Resource.countDocuments(resourceFilter);
     const totalFolders = await Folder.countDocuments();
     const totalTeachers = await User.countDocuments();
 
+    const matchStage = Object.keys(resourceFilter).length > 0 ? [{ $match: resourceFilter }] : [];
+
     // Sum of all downloadCount
     const downloadStats = await Resource.aggregate([
+      ...matchStage,
       {
         $group: {
           _id: null,
@@ -26,6 +46,7 @@ router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req,
 
     // Resource breakdown by category
     const categoryStats = await Resource.aggregate([
+      ...matchStage,
       {
         $group: {
           _id: "$category",
@@ -36,6 +57,7 @@ router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req,
 
     // Resource breakdown by subject
     const subjectStats = await Resource.aggregate([
+      ...matchStage,
       {
         $group: {
           _id: "$subject",
@@ -46,6 +68,7 @@ router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req,
 
     // Resource aggregation by date for charting
     const dateStats = await Resource.aggregate([
+      ...matchStage,
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -61,7 +84,7 @@ router.get("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req,
     }));
 
     // Top downloaded resources
-    const topResources = await Resource.find()
+    const topResources = await Resource.find(resourceFilter)
       .populate("author", "name schoolName")
       .sort({ downloadCount: -1 })
       .limit(5);

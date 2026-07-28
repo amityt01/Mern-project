@@ -4,9 +4,14 @@ const API_BASE = "http://localhost:5050/api";
 
 export const fetchAnalytics = createAsyncThunk(
   "analytics/fetchAnalytics",
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${API_BASE}/analytics`);
+      const queryParams = new URLSearchParams();
+      if (params?.startDate) queryParams.append("startDate", params.startDate);
+      if (params?.endDate) queryParams.append("endDate", params.endDate);
+
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
+      const response = await fetch(`${API_BASE}/analytics${queryString}`);
       const data = await response.json();
       if (!response.ok) return rejectWithValue(data.message || "Failed to fetch analytics");
       return data;

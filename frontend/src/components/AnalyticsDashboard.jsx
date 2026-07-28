@@ -9,14 +9,79 @@ function AnalyticsDashboard() {
   const [timeframe, setTimeframe] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [dateError, setDateError] = useState("");
 
   useEffect(() => {
     dispatch(fetchAnalytics());
   }, [dispatch]);
 
+  const validateDates = (start, end) => {
+    if (start && end) {
+      if (new Date(start) > new Date(end)) {
+        return "Start date cannot be after end date.";
+      }
+    }
+    return "";
+  };
+
+  const handleStartDateChange = (e) => {
+    const newStart = e.target.value;
+    setStartDate(newStart);
+    const err = validateDates(newStart, endDate);
+    setDateError(err);
+    if (!err && newStart && endDate) {
+      setTimeframe("custom");
+      dispatch(fetchAnalytics({ startDate: newStart, endDate }));
+    }
+  };
+
+  const handleEndDateChange = (e) => {
+    const newEnd = e.target.value;
+    setEndDate(newEnd);
+    const err = validateDates(startDate, newEnd);
+    setDateError(err);
+    if (!err && startDate && newEnd) {
+      setTimeframe("custom");
+      dispatch(fetchAnalytics({ startDate, endDate: newEnd }));
+    }
+  };
+
+  const handleClearDates = () => {
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
+    setTimeframe("all");
+    dispatch(fetchAnalytics());
+  };
+
+  const handlePresetSelect = (preset) => {
+    setDateError("");
+    setTimeframe(preset);
+    if (preset === "all") {
+      setStartDate("");
+      setEndDate("");
+      dispatch(fetchAnalytics());
+    } else {
+      const today = new Date();
+      const endStr = today.toISOString().split("T")[0];
+      const startObj = new Date();
+      if (preset === "week") {
+        startObj.setDate(today.getDate() - 7);
+      } else if (preset === "month") {
+        startObj.setDate(today.getDate() - 30);
+      }
+      const startStr = startObj.toISOString().split("T")[0];
+      setStartDate(startStr);
+      setEndDate(endStr);
+      dispatch(fetchAnalytics({ startDate: startStr, endDate: endStr }));
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await dispatch(fetchAnalytics());
+    await dispatch(fetchAnalytics({ startDate, endDate }));
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
@@ -50,10 +115,18 @@ function AnalyticsDashboard() {
 
   const { totalResources = 0, totalFolders = 0, totalTeachers = 0, totalDownloads = 0, categories = [], subjects = [], topResources = [], resourcesByDate = [] } = data || {};
 
+  // Filter resources by date for local trend chart view
+  const filteredResourcesByDate = resourcesByDate.filter((item) => {
+    if (!item.date || item.date === "Unknown") return true;
+    if (startDate && item.date < startDate) return false;
+    if (endDate && item.date > endDate) return false;
+    return true;
+  });
+
   // Max counts for scale calculations
   const maxCategoryCount = categories.length > 0 ? Math.max(...categories.map((c) => c.count)) : 1;
   const maxSubjectCount = subjects.length > 0 ? Math.max(...subjects.map((s) => s.count)) : 1;
-  const maxDateCount = resourcesByDate.length > 0 ? Math.max(...resourcesByDate.map((d) => d.count)) : 1;
+  const maxDateCount = filteredResourcesByDate.length > 0 ? Math.max(...filteredResourcesByDate.map((d) => d.count)) : 1;
 
   // Derived impact metrics
   const estimatedDataSavedMb = (totalDownloads * 1.45).toFixed(1);
@@ -86,22 +159,57 @@ function AnalyticsDashboard() {
         </div>
 
         <div className="dashboard-actions-group">
+          <div className="date-picker-bar">
+            <div className="date-input-group">
+              <label htmlFor="analytics-start-date" className="date-label">From:</label>
+              <input
+                id="analytics-start-date"
+                type="date"
+                className={`date-picker-input ${dateError ? "input-error" : ""}`}
+                value={startDate}
+                onChange={handleStartDateChange}
+                max={endDate || undefined}
+              />
+            </div>
+            <div className="date-input-group">
+              <label htmlFor="analytics-end-date" className="date-label">To:</label>
+              <input
+                id="analytics-end-date"
+                type="date"
+                className={`date-picker-input ${dateError ? "input-error" : ""}`}
+                value={endDate}
+                onChange={handleEndDateChange}
+                min={startDate || undefined}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                className="btn-clear-date"
+                onClick={handleClearDates}
+                title="Clear date filter"
+                type="button"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
           <div className="timeframe-selector">
             <button
               className={`timeframe-btn ${timeframe === "all" ? "active" : ""}`}
-              onClick={() => setTimeframe("all")}
+              onClick={() => handlePresetSelect("all")}
             >
               All Time
             </button>
             <button
               className={`timeframe-btn ${timeframe === "month" ? "active" : ""}`}
-              onClick={() => setTimeframe("month")}
+              onClick={() => handlePresetSelect("month")}
             >
               30 Days
             </button>
             <button
               className={`timeframe-btn ${timeframe === "week" ? "active" : ""}`}
-              onClick={() => setTimeframe("week")}
+              onClick={() => handlePresetSelect("week")}
             >
               7 Days
             </button>
@@ -121,6 +229,17 @@ function AnalyticsDashboard() {
           </button>
         </div>
       </div>
+
+      {dateError && (
+        <div className="date-validation-alert" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="alert-icon-sm">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>{dateError}</span>
+        </div>
+      )}
 
       {/* Summary Cards Grid (Material UI Card Layout) */}
       <section className="analytics-overview-grid">
@@ -349,13 +468,13 @@ function AnalyticsDashboard() {
               <h3>Resource Publishing Trend</h3>
               <p className="distribution-subtitle">Volume of new materials published by date</p>
             </div>
-            <span className="badge-pill-sm">{resourcesByDate.length} Active Days</span>
+            <span className="badge-pill-sm">{filteredResourcesByDate.length} Active Days</span>
           </div>
-          {!resourcesByDate || resourcesByDate.length === 0 ? (
-            <p className="no-data-text">No publication timeline records available.</p>
+          {!filteredResourcesByDate || filteredResourcesByDate.length === 0 ? (
+            <p className="no-data-text">No publication timeline records available for selected range.</p>
           ) : (
             <div className="chart-list">
-              {resourcesByDate.map((d) => {
+              {filteredResourcesByDate.map((d) => {
                 const percentage = Math.round((d.count / maxDateCount) * 100);
                 return (
                   <div key={d.date} className="chart-item">
