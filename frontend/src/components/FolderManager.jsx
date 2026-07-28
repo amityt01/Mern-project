@@ -6,12 +6,15 @@ import {
   createFolder,
   deleteFolder,
   shareFolder,
+  addResourceToFolder,
   removeResourceFromFolder,
   clearFolderError,
 } from "../store/folderSlice";
+import { createResource } from "../store/resourceSlice";
 import { addToast } from "../store/toastSlice";
 import { FolderItemSkeleton, TableRowSkeleton } from "./SkeletonLoader";
 import FolderModal from "./FolderModal";
+import ResourceForm from "./ResourceForm";
 
 function FolderManager() {
   const dispatch = useDispatch();
@@ -38,6 +41,11 @@ function FolderManager() {
   const [shareEmail, setShareEmail] = useState("");
   const [sharePermission, setSharePermission] = useState("read");
   const [shareError, setShareError] = useState("");
+
+  // Upload resource to folder states
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadServerError, setUploadServerError] = useState("");
+  const [isUploadingResource, setIsUploadingResource] = useState(false);
 
   useEffect(() => {
     dispatch(fetchFolders());
@@ -168,6 +176,37 @@ function FolderManager() {
     }
   };
 
+  const handleUploadToFolderSubmit = async (formData) => {
+    if (!activeFolder) return;
+    setUploadServerError("");
+    setIsUploadingResource(true);
+
+    const resourceAction = await dispatch(createResource(formData));
+
+    if (createResource.fulfilled.match(resourceAction)) {
+      const createdResource = resourceAction.payload;
+      const folderAction = await dispatch(
+        addResourceToFolder({ id: activeFolder._id, resourceId: createdResource._id })
+      );
+
+      if (addResourceToFolder.fulfilled.match(folderAction)) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Resource Uploaded",
+            message: `"${createdResource.title}" was uploaded and added to folder "${activeFolder.name}".`,
+          })
+        );
+        setIsUploadModalOpen(false);
+      } else {
+        setUploadServerError(folderAction.payload || "Failed to associate resource with folder.");
+      }
+    } else {
+      setUploadServerError(resourceAction.payload || "Failed to create resource.");
+    }
+    setIsUploadingResource(false);
+  };
+
   const getFolderRole = (folder) => {
     if (folder.owner?._id === user?.id || folder.owner === user?.id) return "Owner";
     const share = folder.sharedWith?.find(
@@ -197,6 +236,45 @@ function FolderManager() {
         isSubmitting={isCreating}
         serverError={modalServerError}
       />
+
+      {/* Resource Upload to Folder Modal */}
+      {isUploadModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsUploadModalOpen(false)}>
+          <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Upload Resource to "{activeFolder?.name}"</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsUploadModalOpen(false)}
+              >
+                &times;
+              </button>
+            </div>
+            <p className="modal-subtitle">
+              Upload a lesson material or worksheet with the file picker to add it directly to this collaborative folder.
+            </p>
+
+            {uploadServerError && (
+              <div className="modal-error-banner" role="alert">
+                <svg className="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{uploadServerError}</span>
+              </div>
+            )}
+
+            <ResourceForm
+              onSubmit={handleUploadToFolderSubmit}
+              onCancel={() => setIsUploadModalOpen(false)}
+              isSaving={isUploadingResource}
+              submitText={isUploadingResource ? "Uploading..." : "Upload & Save to Folder"}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Sidebar: Folder Creation & List */}
       <aside className="folders-sidebar">
@@ -348,20 +426,33 @@ function FolderManager() {
                 </div>
               </div>
 
-              {/* Share Trigger */}
-              {activeFolder.owner?._id === user?.id && (
-                <button
-                  className="btn-secondary btn-share-folder"
-                  onClick={() => {
-                    setSharingFolderId(
-                      sharingFolderId === activeFolder._id ? null : activeFolder._id
-                    );
-                    setShareError("");
-                  }}
-                >
-                  Share Folder
-                </button>
-              )}
+              {/* Header Action Buttons */}
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                {canEditFolder(activeFolder) && (
+                  <button
+                    className="btn-primary"
+                    onClick={() => {
+                      setUploadServerError("");
+                      setIsUploadModalOpen(true);
+                    }}
+                  >
+                    + Upload Resource
+                  </button>
+                )}
+                {activeFolder.owner?._id === user?.id && (
+                  <button
+                    className="btn-secondary btn-share-folder"
+                    onClick={() => {
+                      setSharingFolderId(
+                        sharingFolderId === activeFolder._id ? null : activeFolder._id
+                      );
+                      setShareError("");
+                    }}
+                  >
+                    Share Folder
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Sharing Sub-Form */}
@@ -432,11 +523,36 @@ function FolderManager() {
 
             {/* Resources List Inside Folder */}
             <div className="folder-resources-section">
-              <h3>Resources in this Folder</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h3 style={{ margin: 0 }}>Resources in this Folder</h3>
+                {canEditFolder(activeFolder) && (
+                  <button
+                    className="btn-secondary btn-sm"
+                    onClick={() => {
+                      setUploadServerError("");
+                      setIsUploadModalOpen(true);
+                    }}
+                  >
+                    + Add / Upload Resource
+                  </button>
+                )}
+              </div>
               {activeFolder.resources?.length === 0 ? (
                 <div className="empty-folder-resources">
                   <p>This folder is currently empty.</p>
-                  <span>To add items, go to the <strong>Resources</strong> tab, click a resource card, and select this folder from the dropdown menu.</span>
+                  <span>Upload a worksheet or lesson material using the button below or link existing resources from the catalog.</span>
+                  {canEditFolder(activeFolder) && (
+                    <button
+                      className="btn-primary"
+                      style={{ marginTop: "14px" }}
+                      onClick={() => {
+                        setUploadServerError("");
+                        setIsUploadModalOpen(true);
+                      }}
+                    >
+                      + Upload Resource to Folder
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="folder-resources-table">
