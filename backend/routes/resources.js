@@ -27,6 +27,21 @@ router.get("/", async (req, res) => {
   }
 });
 
+// @route   GET /api/resources/top
+// @desc    Get top 5 performing resources sorted by download count
+router.get("/top", async (req, res) => {
+  try {
+    const topResources = await Resource.find()
+      .populate("author", "name schoolName")
+      .sort({ downloadCount: -1 })
+      .limit(5);
+
+    res.json(topResources);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // @route   GET /api/resources/:id
 // @desc    Get details of a single resource
 router.get("/:id", async (req, res) => {
