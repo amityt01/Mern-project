@@ -46,7 +46,19 @@ function ResourceForm({ onSubmit, initialData, onCancel, isSaving = false, submi
           size: initialData.fileSize || 0,
           type: initialData.fileType || "",
         });
+      } else {
+        setSelectedFile(null);
       }
+    } else {
+      setFormData({
+        title: "",
+        description: "",
+        category: "Worksheet",
+        subject: "Math",
+        gradeLevel: "Primary",
+        content: "",
+      });
+      setSelectedFile(null);
     }
   }, [initialData]);
 
@@ -195,6 +207,27 @@ function ResourceForm({ onSubmit, initialData, onCancel, isSaving = false, submi
 
   return (
     <form onSubmit={handleSubmit} className="resource-upload-form" noValidate>
+      {initialData && (
+        <div className="edit-mode-banner" style={{
+          marginBottom: "16px",
+          padding: "10px 14px",
+          borderRadius: "8px",
+          backgroundColor: "rgba(99, 102, 241, 0.12)",
+          border: "1px solid rgba(99, 102, 241, 0.3)",
+          color: "#818cf8",
+          fontSize: "13px",
+          fontWeight: "500",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px"
+        }}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+          <span>Editing Resource: <strong>{initialData.title}</strong></span>
+        </div>
+      )}
       {/* Title Field */}
       <div className="form-group">
         <label htmlFor="title">
