@@ -288,6 +288,12 @@ class MockModel {
                 (s) => (s.user && s.user._id ? s.user._id.toString() : s.user.toString()) === val.toString()
               );
             if (!hasUser) return false;
+          } else if (query[key] && (query[key].$gte || query[key].$lte || query[key].$gt || query[key].$lt)) {
+            const val = new Date(item[key]).getTime();
+            if (query[key].$gte && val < new Date(query[key].$gte).getTime()) return false;
+            if (query[key].$gt && val <= new Date(query[key].$gt).getTime()) return false;
+            if (query[key].$lte && val > new Date(query[key].$lte).getTime()) return false;
+            if (query[key].$lt && val >= new Date(query[key].$lt).getTime()) return false;
           } else if (query[key] && query[key].$regex) {
             const regex = new RegExp(query[key].$regex, query[key].$options || "i");
             if (!regex.test(item[key] || "")) return false;
@@ -386,12 +392,19 @@ class MockModel {
     return new MockDocument(newDoc, this.collectionName, this);
   }
 
-  async countDocuments() {
+  async countDocuments(query = {}) {
+    if (query && Object.keys(query).length > 0) {
+      return this.find(query).items.length;
+    }
     return this.getColl().length;
   }
 
   async aggregate(pipeline) {
-    const list = this.getColl();
+    let list = this.getColl();
+    const matchStage = pipeline.find((stage) => stage.$match);
+    if (matchStage && matchStage.$match) {
+      list = this.find(matchStage.$match).items;
+    }
     const groupStage = pipeline.find((stage) => stage.$group);
     if (groupStage) {
       const group = groupStage.$group;
