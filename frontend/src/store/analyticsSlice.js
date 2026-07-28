@@ -27,6 +27,31 @@ export const fetchAnalytics = createAsyncThunk(
   }
 );
 
+export const fetchEngagementTrends = createAsyncThunk(
+  "analytics/fetchEngagementTrends",
+  async (params = {}, { getState, rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.startDate) queryParams.append("startDate", params.startDate);
+      if (params?.endDate) queryParams.append("endDate", params.endDate);
+
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
+      const token = getState()?.auth?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE}/analytics/trends${queryString}`, { headers });
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to fetch engagement trends");
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
 export const exportAnalyticsCsv = createAsyncThunk(
   "analytics/exportAnalyticsCsv",
   async (params = {}, { getState, rejectWithValue }) => {
@@ -106,6 +131,18 @@ const analyticsSlice = createSlice({
         state.data = action.payload;
       })
       .addCase(fetchAnalytics.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchEngagementTrends.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchEngagementTrends.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.data = action.payload;
+      })
+      .addCase(fetchEngagementTrends.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })

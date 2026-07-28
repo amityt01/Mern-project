@@ -1,4 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchAnalytics, fetchEngagementTrends } from "../store/analyticsSlice";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,7 +26,46 @@ ChartJS.register(
   Filler
 );
 
-function AnalyticsLineChart({ data = [], timeframe = "all" }) {
+/**
+ * AnalyticsLineChart - Component to display Resource Engagement Trends.
+ * Displays time-series data for Views and Downloads from backend API.
+ * Connects to Redux store or receives data, isLoading, error via props.
+ * Updates automatically when new data is received.
+ */
+function AnalyticsLineChart({
+  data: propData,
+  isLoading: propIsLoading,
+  error: propError,
+  timeframe = "all",
+  onRefresh,
+  title = "Resource Views vs. Downloads",
+  subtitle = "Time-series comparisons of material previews against offline material downloads.",
+}) {
+  const dispatch = useDispatch();
+  const { data: reduxAnalyticsData, isLoading: reduxIsLoading, error: reduxError } = useSelector(
+    (state) => state.analytics
+  );
+
+  // Determine data, loading, and error states from props or Redux store
+  const data = propData !== undefined ? propData : (reduxAnalyticsData?.resourcesByDate || []);
+  const isLoading = propIsLoading !== undefined ? propIsLoading : reduxIsLoading;
+  const error = propError !== undefined ? propError : reduxError;
+
+  // Fetch engagement trends via Redux if standalone and no data in Redux
+  useEffect(() => {
+    if (propData === undefined && (!reduxAnalyticsData || !reduxAnalyticsData.resourcesByDate)) {
+      dispatch(fetchEngagementTrends());
+    }
+  }, [dispatch, propData, reduxAnalyticsData]);
+
+  const handleRetry = () => {
+    if (onRefresh) {
+      onRefresh();
+    } else {
+      dispatch(fetchEngagementTrends());
+    }
+  };
+
   // Process and format time-series data for Views and Downloads
   const chartDataPoints = useMemo(() => {
     if (data && data.length > 0) {
@@ -40,7 +81,7 @@ function AnalyticsLineChart({ data = [], timeframe = "all" }) {
       });
     }
 
-    // Default timeline dataset if no records in database for range
+    // Default timeline dataset if no API data passed yet
     const today = new Date();
     const daysCount = timeframe === "week" ? 7 : timeframe === "month" ? 14 : 10;
     const points = [];
@@ -64,6 +105,66 @@ function AnalyticsLineChart({ data = [], timeframe = "all" }) {
   const totalViews = viewsSeries.reduce((acc, curr) => acc + curr, 0);
   const totalDownloads = downloadsSeries.reduce((acc, curr) => acc + curr, 0);
   const conversionRate = totalViews > 0 ? ((totalDownloads / totalViews) * 100).toFixed(1) : "0.0";
+
+  // Loading State
+  if (isLoading && (!data || data.length === 0)) {
+    return (
+      <div className="analytics-line-chart-card">
+        <div className="chart-card-header">
+          <div>
+            <div className="chart-title-row">
+              <h3>{title}</h3>
+              <span className="badge-pill-sm highlight-pill">Loading API</span>
+            </div>
+            <p className="distribution-subtitle">{subtitle}</p>
+          </div>
+        </div>
+        <div style={{ padding: "40px 20px", textAlign: "center" }}>
+          <div className="spinner" style={{ margin: "0 auto 12px auto" }} />
+          <p style={{ color: "var(--text-secondary, #9ca3af)", fontSize: "14px", margin: 0 }}>
+            Loading resource engagement trends...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error State
+  if (error && (!data || data.length === 0)) {
+    return (
+      <div className="analytics-line-chart-card">
+        <div className="chart-card-header">
+          <div>
+            <div className="chart-title-row">
+              <h3>{title}</h3>
+              <span className="badge-pill-sm" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>
+                Error
+              </span>
+            </div>
+            <p className="distribution-subtitle">{subtitle}</p>
+          </div>
+        </div>
+        <div className="empty-resources-state" style={{ padding: "30px 20px", textAlign: "center" }}>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            style={{ width: "40px", height: "40px", color: "var(--accent-danger, #ef4444)", marginBottom: "12px" }}
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <h4 style={{ margin: "0 0 6px 0", color: "var(--text-primary)" }}>Failed to Load Engagement Trends</h4>
+          <p style={{ margin: "0 0 16px 0", color: "var(--text-secondary)", fontSize: "13px" }}>{error}</p>
+          <button className="btn-secondary" onClick={handleRetry} type="button">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Chart.js data configuration
   const chartConfigData = {
@@ -187,12 +288,10 @@ function AnalyticsLineChart({ data = [], timeframe = "all" }) {
       <div className="chart-card-header">
         <div>
           <div className="chart-title-row">
-            <h3>Resource Views vs. Downloads</h3>
+            <h3>{title}</h3>
             <span className="badge-pill-sm highlight-pill">Two Series Trend</span>
           </div>
-          <p className="distribution-subtitle">
-            Time-series comparisons of material previews against offline material downloads.
-          </p>
+          <p className="distribution-subtitle">{subtitle}</p>
         </div>
 
         <div className="chart-legend-custom">

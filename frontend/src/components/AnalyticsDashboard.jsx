@@ -473,7 +473,13 @@ function AnalyticsDashboard() {
 
       {/* Interactive Line Chart: Views vs Downloads */}
       <section className="analytics-chart-section">
-        <AnalyticsLineChart data={filteredResourcesByDate} timeframe={timeframe} />
+        <AnalyticsLineChart
+          data={filteredResourcesByDate}
+          timeframe={timeframe}
+          isLoading={isLoading}
+          error={error}
+          onRefresh={handleRefresh}
+        />
       </section>
 
       {/* Distribution Charts & Top Resources Grid */}

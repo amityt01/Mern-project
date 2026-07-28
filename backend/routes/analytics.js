@@ -360,6 +360,8 @@ router.get("/", optionalAuth, getUsageOverview);
 router.get("/overview", optionalAuth, getUsageOverview);
 router.get("/usage", optionalAuth, getUsageOverview);
 router.get("/resource-usage", optionalAuth, getUsageOverview);
+router.get("/trends", optionalAuth, getUsageOverview);
+router.get("/engagement-trends", optionalAuth, getUsageOverview);
 
 // @route   GET /api/analytics/export
 // @route   GET /api/analytics/export-csv
