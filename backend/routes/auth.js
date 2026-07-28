@@ -187,7 +187,11 @@ router.put("/profile", authMiddleware, async (req, res) => {
     }
 
     if (schoolName !== undefined) user.schoolName = schoolName.trim();
-    if (role !== undefined) user.role = role.trim();
+    if (role !== undefined && req.user.role === "Admin") {
+      if (["Admin", "Educator", "Student"].includes(role.trim())) {
+        user.role = role.trim();
+      }
+    }
     if (phone !== undefined) user.phone = phone.trim();
     if (bio !== undefined) user.bio = bio.trim();
     if (avatar !== undefined) user.avatar = avatar;
@@ -257,6 +261,10 @@ router.put("/change-password", authMiddleware, async (req, res) => {
       message: "Password updated successfully after identity verification!",
     });
   } catch (err) {
+    res.status(500).json({ message: err.message || "Failed to update password." });
+  }
+});
+
 // ==================== ADMIN ROUTES ====================
 
 // @route   GET /users
@@ -297,6 +305,9 @@ router.put("/users/:id/role", authMiddleware, authorizeRoles("Admin"), async (re
 // @desc    Delete user account (Admin only)
 router.delete("/users/:id", authMiddleware, authorizeRoles("Admin"), async (req, res) => {
   try {
+    if (req.params.id === req.user.id || req.params.id === req.user._id) {
+      return res.status(400).json({ message: "Admin cannot delete their own active account." });
+    }
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) {
       return res.status(404).json({ message: "User not found." });
