@@ -1,5 +1,5 @@
 const { verifyToken } = require("../utils/authHelper");
-const { hasRole } = require("../utils/roles");
+const { hasRole, hasPermission } = require("../utils/roles");
 
 /**
  * Middleware to verify JWT token and attach user payload to request
@@ -39,16 +39,17 @@ const authMiddleware = function (req, res, next) {
 
 /**
  * Middleware to authorize access based on user role(s)
- * @param  {...string} allowedRoles 
+ * @param  {...string|string[]} allowedRoles 
  */
 const authorizeRoles = (...allowedRoles) => {
+  const rolesList = allowedRoles.flat();
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Access denied. Authentication required." });
     }
 
     const userRole = req.user.role || "Educator";
-    if (!hasRole(userRole, allowedRoles)) {
+    if (!hasRole(userRole, rolesList)) {
       return res.status(403).json({
         success: false,
         message: `Access denied. Role '${userRole}' does not have permission to perform this action.`,
@@ -59,6 +60,33 @@ const authorizeRoles = (...allowedRoles) => {
   };
 };
 
+/**
+ * Middleware to authorize access based on user permission(s)
+ * @param  {...string|string[]} requiredPermissions 
+ */
+const authorizePermissions = (...requiredPermissions) => {
+  const permissionsList = requiredPermissions.flat();
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Access denied. Authentication required." });
+    }
+
+    const userRole = req.user.role || "Educator";
+    const hasAccess = permissionsList.every((permission) => hasPermission(userRole, permission));
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. Role '${userRole}' does not have required permissions.`,
+      });
+    }
+
+    next();
+  };
+};
+
 module.exports = authMiddleware;
 module.exports.authMiddleware = authMiddleware;
 module.exports.authorizeRoles = authorizeRoles;
+module.exports.authorizePermissions = authorizePermissions;
+

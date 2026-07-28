@@ -64,8 +64,8 @@ router.get("/shared", authMiddleware, async (req, res) => {
 });
 
 // @route   POST /api/folders
-// @desc    Create a new folder
-router.post("/", authMiddleware, async (req, res) => {
+// @desc    Create a new folder (Admin, Educator)
+router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name) {
