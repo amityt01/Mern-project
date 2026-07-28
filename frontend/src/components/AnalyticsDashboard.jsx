@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchAnalytics } from "../store/analyticsSlice";
+import { fetchAnalytics, exportAnalyticsCsv } from "../store/analyticsSlice";
+import { addToast } from "../store/toastSlice";
 import { AnalyticsSkeleton } from "./SkeletonLoader";
 import AnalyticsLineChart from "./AnalyticsLineChart";
 import TopPerformingResources from "./TopPerformingResources";
 
 function AnalyticsDashboard() {
   const dispatch = useDispatch();
-  const { data, isLoading, error } = useSelector((state) => state.analytics);
+  const { data, isLoading, error, isExporting, exportError } = useSelector((state) => state.analytics);
   const [timeframe, setTimeframe] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
@@ -82,30 +83,45 @@ function AnalyticsDashboard() {
   };
 
   const handleExportCsv = async () => {
+    if (dateError) return;
     try {
-      const queryParams = new URLSearchParams();
-      if (startDate) queryParams.append("startDate", startDate);
-      if (endDate) queryParams.append("endDate", endDate);
-      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
+      const resultAction = await dispatch(exportAnalyticsCsv({ startDate, endDate }));
+      if (exportAnalyticsCsv.fulfilled.match(resultAction)) {
+        const { blob, filename } = resultAction.payload;
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
 
-      const res = await fetch(`http://localhost:5050/api/analytics/export${queryString}`);
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.message || "Failed to generate CSV usage report.");
-        return;
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Export Successful",
+            message: "CSV usage report downloaded successfully.",
+          })
+        );
+      } else if (exportAnalyticsCsv.rejected.match(resultAction)) {
+        const errMsg = resultAction.payload || "Failed to download CSV usage report.";
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Export Failed",
+            message: errMsg,
+          })
+        );
       }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `resource_usage_report_${startDate || "all"}_to_${endDate || "all"}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("Failed to download CSV usage report:", err);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Export Error",
+          message: err.message || "An unexpected error occurred during CSV export.",
+        })
+      );
     }
   };
 
@@ -259,17 +275,30 @@ function AnalyticsDashboard() {
           </button>
 
           <button
-            className="btn-primary btn-export-csv"
+            className={`btn-primary btn-export-csv ${isExporting ? "exporting" : ""}`}
             onClick={handleExportCsv}
+            disabled={isExporting || Boolean(dateError)}
             title="Export CSV Usage Report"
             type="button"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon-sm">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={`btn-icon-sm ${isExporting ? "spin-icon" : ""}`}
+            >
+              {isExporting ? (
+                <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
+              ) : (
+                <>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </>
+              )}
             </svg>
-            <span>Export CSV</span>
+            <span>{isExporting ? "Exporting..." : "Export CSV"}</span>
           </button>
         </div>
       </div>
@@ -282,6 +311,17 @@ function AnalyticsDashboard() {
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span>{dateError}</span>
+        </div>
+      )}
+
+      {exportError && (
+        <div className="date-validation-alert" role="alert" style={{ marginTop: "8px" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="alert-icon-sm">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>{exportError}</span>
         </div>
       )}
 

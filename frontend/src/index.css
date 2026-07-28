@@ -1697,8 +1697,15 @@ body {
   font-size: 13px;
 }
 
-.btn-refresh-dash.refreshing .btn-icon-sm {
+.btn-refresh-dash.refreshing .btn-icon-sm,
+.btn-export-csv.exporting .btn-icon-sm,
+.spin-icon {
   animation: spin 0.8s linear infinite;
+}
+
+.btn-export-csv:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 @keyframes spin {
