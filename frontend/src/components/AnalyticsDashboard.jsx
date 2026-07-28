@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchAnalytics } from "../store/analyticsSlice";
 import { AnalyticsSkeleton } from "./SkeletonLoader";
+import AnalyticsLineChart from "./AnalyticsLineChart";
 
 function AnalyticsDashboard() {
   const dispatch = useDispatch();
@@ -385,6 +386,9 @@ function AnalyticsDashboard() {
             <span>Accounting for over 60% of total classroom downloads this quarter.</span>
           </div>
         </div>
+      {/* Interactive Line Chart: Views vs Downloads */}
+      <section className="analytics-chart-section">
+        <AnalyticsLineChart data={filteredResourcesByDate} timeframe={timeframe} />
       </section>
 
       {/* Distribution Charts & Top Resources Grid */}
