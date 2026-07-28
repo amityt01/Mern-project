@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { deleteResource } from "./resourceSlice";
 
 const API_BASE = "http://localhost:5050/api";
 
@@ -415,6 +416,21 @@ const folderSlice = createSlice({
       .addCase(removeResourceFromFolder.rejected, (state, action) => {
         state.removingResourceId = null;
         state.error = action.payload;
+      })
+
+      // Synchronize folder state when a resource is deleted
+      .addCase(deleteResource.fulfilled, (state, action) => {
+        const deletedId = action.payload;
+        const removeDeletedResource = (folder) => ({
+          ...folder,
+          resources: Array.isArray(folder.resources)
+            ? folder.resources.filter((r) =>
+                typeof r === "object" && r !== null ? r._id !== deletedId : r !== deletedId
+              )
+            : folder.resources,
+        });
+        state.folders = state.folders.map(removeDeletedResource);
+        state.sharedFolders = state.sharedFolders.map(removeDeletedResource);
       });
   },
 });

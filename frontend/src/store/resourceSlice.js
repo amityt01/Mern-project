@@ -198,6 +198,7 @@ const initialState = {
   deletingId: null,
   downloadingId: null,
   error: null,
+  deleteError: null,
   topError: null,
   filters: {
     category: "",
@@ -297,15 +298,17 @@ const resourceSlice = createSlice({
       // Delete Resource
       .addCase(deleteResource.pending, (state, action) => {
         state.deletingId = action.meta.arg;
-        state.error = null;
+        state.deleteError = null;
       })
       .addCase(deleteResource.fulfilled, (state, action) => {
         state.deletingId = null;
+        state.deleteError = null;
         state.resources = state.resources.filter((r) => r._id !== action.payload);
+        state.topResources = state.topResources.filter((r) => r._id !== action.payload);
       })
       .addCase(deleteResource.rejected, (state, action) => {
         state.deletingId = null;
-        state.error = action.payload;
+        state.deleteError = action.payload;
       })
 
       // Download count increment

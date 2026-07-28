@@ -59,6 +59,21 @@ function ResourcesView() {
     dispatch(fetchResources(filters));
   }, [filters, dispatch]);
 
+  // Synchronize selected resource state after deletion (clear modal if deleted)
+  useEffect(() => {
+    if (selectedResource && !resources.some((r) => r._id === selectedResource._id)) {
+      setSelectedResource(null);
+    }
+  }, [resources, selectedResource]);
+
+  // Synchronize pagination page state when deletion reduces total page count
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(resources.length / ITEMS_PER_PAGE));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [resources.length, currentPage]);
+
   const handleFilterChange = (e) => {
     setCurrentPage(1);
     dispatch(setFilters({ [e.target.name]: e.target.value }));
