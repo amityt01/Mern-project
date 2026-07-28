@@ -110,31 +110,38 @@ function ResourcesView() {
     }
   };
 
-  const handleDelete = async (id, title, e) => {
-    e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete "${title}"?`)) {
-      const action = await dispatch(deleteResource(id));
-      if (deleteResource.fulfilled.match(action)) {
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Resource Deleted",
-            message: `"${title}" was removed from the catalog.`,
-          })
-        );
-        if (selectedResource && selectedResource._id === id) {
-          setSelectedResource(null);
-        }
-      } else {
-        dispatch(
-          addToast({
-            type: "error",
-            title: "Delete Failed",
-            message: action.payload || "Could not delete resource.",
-          })
-        );
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
+
+  const openDeleteConfirm = (resource, e) => {
+    if (e) e.stopPropagation();
+    setDeleteConfirmTarget({ id: resource._id, title: resource.title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmTarget) return;
+    const { id, title } = deleteConfirmTarget;
+    const action = await dispatch(deleteResource(id));
+    if (deleteResource.fulfilled.match(action)) {
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Resource Deleted",
+          message: `"${title}" was removed from the catalog.`,
+        })
+      );
+      if (selectedResource && selectedResource._id === id) {
+        setSelectedResource(null);
       }
+    } else {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Delete Failed",
+          message: action.payload || "Could not delete resource.",
+        })
+      );
     }
+    setDeleteConfirmTarget(null);
   };
 
   const handleResourceClick = (resource) => {
@@ -373,6 +380,16 @@ function ResourcesView() {
                 </div>
               )}
 
+              {user && (selectedResource.author?._id === user.id || selectedResource.author === user.id || user.role === "Admin") && (
+                <button
+                  className="btn-danger-outline"
+                  onClick={(e) => openDeleteConfirm(selectedResource, e)}
+                  disabled={deletingId === selectedResource._id}
+                >
+                  {deletingId === selectedResource._id ? "Deleting..." : "Delete"}
+                </button>
+              )}
+
               <button
                 className="btn-primary btn-download"
                 onClick={() => handleDownload(selectedResource)}
@@ -392,6 +409,41 @@ function ResourcesView() {
                     Download Offline Text
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmTarget && (
+        <div className="modal-overlay" onClick={() => setDeleteConfirmTarget(null)}>
+          <div className="modal-content confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-modal-header">
+              <svg className="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <h3>Delete Resource</h3>
+            </div>
+            <p className="confirm-modal-body">
+              Are you sure you want to delete <strong>"{deleteConfirmTarget.title}"</strong>? This action cannot be undone.
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => setDeleteConfirmTarget(null)}
+                disabled={deletingId === deleteConfirmTarget.id}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-danger-confirm"
+                onClick={handleConfirmDelete}
+                disabled={deletingId === deleteConfirmTarget.id}
+              >
+                {deletingId === deleteConfirmTarget.id ? "Deleting..." : "Delete Resource"}
               </button>
             </div>
           </div>
@@ -439,7 +491,7 @@ function ResourcesView() {
                 const currentResources = resources.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
                 return currentResources.map((resource) => {
-                  const isOwner = user && resource.author?._id === user.id;
+                  const isOwner = user && (resource.author?._id === user.id || resource.author === user.id || user.role === "Admin");
                   const firstLetter = resource.author?.name ? resource.author.name.charAt(0).toUpperCase() : "?";
                   const colors = ["avatar-pink", "avatar-purple", "avatar-blue", "avatar-teal", "avatar-orange"];
                   const charCode = firstLetter.charCodeAt(0) || 0;
@@ -520,7 +572,7 @@ function ResourcesView() {
                           </button>
                           <button
                             className="btn-icon btn-delete"
-                            onClick={(e) => handleDelete(resource._id, resource.title, e)}
+                            onClick={(e) => openDeleteConfirm(resource, e)}
                             disabled={isDeleting}
                           >
                             {isDeleting ? "..." : "Delete"}
