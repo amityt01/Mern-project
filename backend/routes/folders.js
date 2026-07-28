@@ -3,33 +3,53 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Folder = require("../models/Folder");
 const User = require("../models/User");
+const Resource = require("../models/Resource");
 const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 
-// Helper to check folder access
-const getFolderAccess = (folder, userId) => {
-  const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner.toString();
-  if (ownerId === userId) {
+/**
+ * Helper function to determine a user's access level for a collaborative folder.
+ * Returns: "owner" | "write" | "read" | null
+ */
+const getFolderAccess = (folder, userId, userRole) => {
+  if (!folder || !userId) return null;
+  const uid = userId.toString();
+
+  // Admin role grants full owner access
+  if (userRole === "Admin") {
     return "owner";
   }
-  const share = folder.sharedWith.find(s => {
-    if (!s.user) return false;
-    const sUserId = s.user._id ? s.user._id.toString() : s.user.toString();
-    return sUserId === userId;
-  });
-  return share ? share.permission : null;
-};
 
+  const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner ? folder.owner.toString() : "";
+  if (ownerId === uid) {
+    return "owner";
+  }
+
+  if (Array.isArray(folder.sharedWith)) {
+    const share = folder.sharedWith.find((s) => {
+      if (!s || !s.user) return false;
+      const sUserId = s.user._id ? s.user._id.toString() : s.user.toString();
+      return sUserId === uid;
+    });
+    return share ? share.permission : null;
+  }
+
+  return null;
+};
 
 // @route   GET /api/folders
 // @desc    Get all folders owned by or shared with current user
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const folders = await Folder.find({
-      $or: [
-        { owner: req.user.id },
-        { "sharedWith.user": req.user.id }
-      ]
-    })
+    const query = req.user.role === "Admin"
+      ? {}
+      : {
+          $or: [
+            { owner: req.user.id },
+            { "sharedWith.user": req.user.id }
+          ]
+        };
+
+    const folders = await Folder.find(query)
       .populate("owner", "name schoolName email")
       .populate("sharedWith.user", "name schoolName email")
       .populate("resources", "title category subject gradeLevel")
@@ -69,12 +89,12 @@ router.get("/shared", authMiddleware, async (req, res) => {
 router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
     const { name, description } = req.body;
-    if (!name) {
+    if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ message: "Folder name is required." });
     }
 
     const newFolder = await Folder.create({
-      name,
+      name: name.trim(),
       description: description || "",
       owner: req.user.id,
       sharedWith: [],
@@ -96,6 +116,10 @@ router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), async (req
 // @desc    Get folder details and resources
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
     const folder = await Folder.findById(req.params.id)
       .populate("owner", "name schoolName email")
       .populate("sharedWith.user", "name schoolName email")
@@ -111,7 +135,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    const access = getFolderAccess(folder, req.user.id);
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
     if (!access) {
       return res.status(403).json({ message: "Access denied. Folder is not shared with you." });
     }
@@ -122,16 +146,68 @@ router.get("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-// @route   DELETE /api/folders/:id
-// @desc    Delete a folder (Only owner can delete)
-router.delete("/:id", authMiddleware, async (req, res) => {
+// Handler for updating folder metadata (name, description)
+const updateFolderHandler = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
     const folder = await Folder.findById(req.params.id);
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    if (folder.owner.toString() !== req.user.id) {
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
+    if (access !== "owner" && access !== "write") {
+      return res.status(403).json({ message: "You do not have write access to this folder." });
+    }
+
+    const { name, description } = req.body;
+    if (name !== undefined) {
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "Folder name cannot be empty." });
+      }
+      folder.name = name.trim();
+    }
+    if (description !== undefined) {
+      folder.description = description;
+    }
+
+    await folder.save();
+
+    const updatedFolder = await Folder.findById(req.params.id)
+      .populate("owner", "name schoolName email")
+      .populate("sharedWith.user", "name schoolName email")
+      .populate("resources");
+
+    res.json(updatedFolder);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @route   PUT /api/folders/:id
+// @route   PATCH /api/folders/:id
+// @desc    Update folder details (Owner or write permission)
+router.put("/:id", authMiddleware, updateFolderHandler);
+router.patch("/:id", authMiddleware, updateFolderHandler);
+
+// @route   DELETE /api/folders/:id
+// @desc    Delete a folder (Only owner can delete)
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
+    const folder = await Folder.findById(req.params.id);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
+    if (access !== "owner") {
       return res.status(403).json({ message: "Only the folder owner can delete this folder." });
     }
 
@@ -152,17 +228,25 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Please specify teacher's email/ID and permission." });
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
     const folder = await Folder.findById(req.params.id);
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    if (folder.owner.toString() !== req.user.id) {
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
+    if (access !== "owner") {
       return res.status(403).json({ message: "Only the folder owner can share it." });
     }
 
     let targetUser = null;
     if (userId) {
+      if (!mongoose.isValidObjectId(userId)) {
+        return res.status(400).json({ message: "Invalid user ID format." });
+      }
       targetUser = await User.findById(userId);
     } else if (email) {
       targetUser = await User.findOne({ email: email.toLowerCase() });
@@ -177,13 +261,13 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
     }
 
     // Check if already shared
-    const isAlreadyShared = folder.sharedWith.some(s => {
+    const isAlreadyShared = folder.sharedWith.some((s) => {
       const sUserId = s.user && s.user._id ? s.user._id.toString() : s.user.toString();
       return sUserId === targetUser._id.toString();
     });
     if (isAlreadyShared) {
       // Update permission
-      folder.sharedWith = folder.sharedWith.map(s => {
+      folder.sharedWith = folder.sharedWith.map((s) => {
         const sUserId = s.user && s.user._id ? s.user._id.toString() : s.user.toString();
         return sUserId === targetUser._id.toString() ? { user: targetUser._id, permission } : s;
       });
@@ -214,18 +298,32 @@ router.post("/:id/resources", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Resource ID is required." });
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
     const folder = await Folder.findById(req.params.id);
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    const access = getFolderAccess(folder, req.user.id);
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
     if (access !== "owner" && access !== "write") {
       return res.status(403).json({ message: "You do not have write access to this folder." });
     }
 
+    const resource = await Resource.findById(resourceId);
+    if (!resource) {
+      return res.status(404).json({ message: "Resource not found" });
+    }
+
     // Check if resource is already in folder
-    if (folder.resources.includes(resourceId)) {
+    const alreadyInFolder = folder.resources.some((r) => {
+      const rId = r && r._id ? r._id.toString() : r.toString();
+      return rId === resourceId.toString();
+    });
+
+    if (alreadyInFolder) {
       return res.status(400).json({ message: "Resource is already in this folder." });
     }
 
@@ -250,22 +348,28 @@ router.post("/:id/resources", authMiddleware, async (req, res) => {
 });
 
 // @route   DELETE /api/folders/:id/resources/:resourceId
-// @desc    Remove a resource from a folder
+// @desc    Remove a resource from a folder (Owner or write permission)
 router.delete("/:id/resources/:resourceId", authMiddleware, async (req, res) => {
   try {
     const { resourceId } = req.params;
-    const folder = await Folder.findById(req.params.id);
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
 
+    const folder = await Folder.findById(req.params.id);
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    const access = getFolderAccess(folder, req.user.id);
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
     if (access !== "owner" && access !== "write") {
       return res.status(403).json({ message: "You do not have write access to this folder." });
     }
 
-    folder.resources = folder.resources.filter(id => id.toString() !== resourceId);
+    folder.resources = folder.resources.filter((id) => {
+      const rId = id && id._id ? id._id.toString() : id.toString();
+      return rId !== resourceId.toString();
+    });
     await folder.save();
 
     const updatedFolder = await Folder.findById(req.params.id)
@@ -295,12 +399,10 @@ const inviteUserHandler = async (req, res) => {
     const email = req.body.email;
     const permission = req.body.permission || "read";
 
-    // Validate folder ID format
     if (!folderId || !mongoose.isValidObjectId(folderId)) {
       return res.status(400).json({ message: "Invalid folder ID format." });
     }
 
-    // Validate user ID or email presence and format
     if (!userId && !email) {
       return res.status(400).json({ message: "User ID or email is required for invitation." });
     }
@@ -309,19 +411,16 @@ const inviteUserHandler = async (req, res) => {
       return res.status(400).json({ message: "Invalid user ID format." });
     }
 
-    // Check if folder exists
     const folder = await Folder.findById(folderId);
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    // Authorize: Only folder owner (or Admin) can invite users
-    const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner.toString();
-    if (ownerId !== req.user.id && req.user.role !== "Admin") {
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
+    if (access !== "owner") {
       return res.status(403).json({ message: "Only the folder owner can invite users to this folder." });
     }
 
-    // Find target user
     let targetUser = null;
     if (userId) {
       targetUser = await User.findById(userId);
@@ -333,12 +432,10 @@ const inviteUserHandler = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Prevent self-invitation
     if (targetUser._id.toString() === req.user.id) {
       return res.status(400).json({ message: "You cannot invite yourself to your own folder." });
     }
 
-    // Prevent duplicate invitations
     const isAlreadyInvited = folder.sharedWith.some((s) => {
       if (!s.user) return false;
       const sUserId = s.user._id ? s.user._id.toString() : s.user.toString();
@@ -364,35 +461,27 @@ const inviteUserHandler = async (req, res) => {
 };
 
 // @route   DELETE /api/folders/:id/invite/:userId
-// @route   DELETE /api/folders/:id/remove/:userId
-// @route   DELETE /api/folders/:id/collaborators/:userId
-// @route   DELETE /api/folders/:id/share/:userId
-// @route   DELETE /api/folders/:id/users/:userId
 // @desc    Remove a user from a collaborative folder
 const removeUserHandler = async (req, res) => {
   try {
     const folderId = req.params.id || req.params.folderId;
     const userId = req.params.userId || req.body.userId || req.query.userId || req.body.user;
 
-    // Validate folder ID format
     if (!folderId || !mongoose.isValidObjectId(folderId)) {
       return res.status(400).json({ message: "Invalid folder ID format." });
     }
 
-    // Validate user ID format
     if (!userId || !mongoose.isValidObjectId(userId)) {
       return res.status(400).json({ message: "Invalid user ID format." });
     }
 
-    // Check if folder exists
     const folder = await Folder.findById(folderId);
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    // Authorize: Only folder owner (or Admin or user removing self) can remove user
-    const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner.toString();
-    if (ownerId !== req.user.id && req.user.role !== "Admin" && req.user.id !== userId.toString()) {
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
+    if (access !== "owner" && req.user.id !== userId.toString()) {
       return res.status(403).json({ message: "Only the folder owner can remove users from this folder." });
     }
 
@@ -425,7 +514,7 @@ const updatePermissionHandler = async (req, res) => {
   try {
     const folderId = req.params.id || req.params.folderId;
     const userId = req.params.userId || req.body.userId;
-    const permission = req.body.permission; // "read" or "write"
+    const permission = req.body.permission;
 
     if (!permission || !["read", "write"].includes(permission)) {
       return res.status(400).json({ message: "Permission must be 'read' or 'write'." });
@@ -444,9 +533,8 @@ const updatePermissionHandler = async (req, res) => {
       return res.status(404).json({ message: "Folder not found" });
     }
 
-    // Only owner or Admin can change collaborator permissions
-    const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner.toString();
-    if (ownerId !== req.user.id && req.user.role !== "Admin") {
+    const access = getFolderAccess(folder, req.user.id, req.user.role);
+    if (access !== "owner") {
       return res.status(403).json({ message: "Only the folder owner can update collaborator permissions." });
     }
 
@@ -494,3 +582,4 @@ router.delete("/:id/users/:userId", authMiddleware, removeUserHandler);
 router.delete("/:id/invite", authMiddleware, removeUserHandler);
 
 module.exports = router;
+module.exports.getFolderAccess = getFolderAccess;

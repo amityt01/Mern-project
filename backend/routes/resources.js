@@ -6,6 +6,7 @@ const Folder = require("../models/Folder");
 const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 const upload = require("../middleware/upload");
 const { exportUsageCsv } = require("./analytics");
+const { getFolderAccess } = require("./folders");
 
 // @route   GET /api/resources/export
 // @route   GET /api/resources/export-csv
@@ -172,14 +173,23 @@ router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.s
       return res.status(404).json({ message: "Resource not found" });
     }
 
-    // Check ownership or Admin role
+    // Check ownership, Admin role, or write access to folder containing this resource
     const authorId = resource.author ? (resource.author._id || resource.author).toString() : "";
     const userId = (req.user.id || req.user._id || "").toString();
     const isOwner = authorId === userId;
     const isAdmin = req.user.role === "Admin";
 
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ message: "Unauthorized. You can only edit your own resources." });
+    let hasFolderWriteAccess = false;
+    if (!isOwner && !isAdmin && Folder) {
+      const folders = await Folder.find({ resources: id });
+      hasFolderWriteAccess = folders.some((folder) => {
+        const access = getFolderAccess(folder, userId, req.user.role);
+        return access === "owner" || access === "write";
+      });
+    }
+
+    if (!isOwner && !isAdmin && !hasFolderWriteAccess) {
+      return res.status(403).json({ message: "Unauthorized. You do not have permission to modify this resource." });
     }
 
     // Validate input data if provided
@@ -256,13 +266,23 @@ router.delete("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), async
       return res.status(404).json({ message: "Resource not found" });
     }
 
-    // Check ownership or Admin role
-    const userId = req.user.id || req.user._id;
-    const isOwner = resource.author.toString() === userId.toString();
+    // Check ownership, Admin role, or write access to folder containing this resource
+    const userId = (req.user.id || req.user._id || "").toString();
+    const authorId = resource.author ? (resource.author._id || resource.author).toString() : "";
+    const isOwner = authorId === userId;
     const isAdmin = req.user.role === "Admin";
 
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ message: "Unauthorized. You can only delete your own resources." });
+    let hasFolderWriteAccess = false;
+    if (!isOwner && !isAdmin && Folder) {
+      const folders = await Folder.find({ resources: id });
+      hasFolderWriteAccess = folders.some((folder) => {
+        const access = getFolderAccess(folder, userId, req.user.role);
+        return access === "owner" || access === "write";
+      });
+    }
+
+    if (!isOwner && !isAdmin && !hasFolderWriteAccess) {
+      return res.status(403).json({ message: "Unauthorized. You do not have permission to delete this resource." });
     }
 
     await Resource.findByIdAndDelete(id);
