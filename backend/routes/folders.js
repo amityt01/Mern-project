@@ -143,13 +143,13 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 });
 
 // @route   POST /api/folders/:id/share
-// @desc    Share folder with another educator by email
+// @desc    Share folder with another educator by email or userId
 router.post("/:id/share", authMiddleware, async (req, res) => {
   try {
-    const { email, permission } = req.body; // permission: "read" or "write"
+    const { email, userId, permission } = req.body; // permission: "read" or "write"
     
-    if (!email || !permission) {
-      return res.status(400).json({ message: "Please specify teacher's email and permission." });
+    if ((!email && !userId) || !permission) {
+      return res.status(400).json({ message: "Please specify teacher's email/ID and permission." });
     }
 
     const folder = await Folder.findById(req.params.id);
@@ -161,9 +161,15 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
       return res.status(403).json({ message: "Only the folder owner can share it." });
     }
 
-    const targetUser = await User.findOne({ email: email.toLowerCase() });
+    let targetUser = null;
+    if (userId) {
+      targetUser = await User.findById(userId);
+    } else if (email) {
+      targetUser = await User.findOne({ email: email.toLowerCase() });
+    }
+
     if (!targetUser) {
-      return res.status(404).json({ message: "Educator with this email is not registered." });
+      return res.status(404).json({ message: "Educator with specified email or ID is not registered." });
     }
 
     if (targetUser._id.toString() === req.user.id) {
@@ -414,10 +420,70 @@ const removeUserHandler = async (req, res) => {
   }
 };
 
+// @desc    Update permission for a collaborator in a folder
+const updatePermissionHandler = async (req, res) => {
+  try {
+    const folderId = req.params.id || req.params.folderId;
+    const userId = req.params.userId || req.body.userId;
+    const permission = req.body.permission; // "read" or "write"
+
+    if (!permission || !["read", "write"].includes(permission)) {
+      return res.status(400).json({ message: "Permission must be 'read' or 'write'." });
+    }
+
+    if (!folderId || !mongoose.isValidObjectId(folderId)) {
+      return res.status(400).json({ message: "Invalid folder ID format." });
+    }
+
+    if (!userId || !mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ message: "Invalid user ID format." });
+    }
+
+    const folder = await Folder.findById(folderId);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    // Only owner or Admin can change collaborator permissions
+    const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner.toString();
+    if (ownerId !== req.user.id && req.user.role !== "Admin") {
+      return res.status(403).json({ message: "Only the folder owner can update collaborator permissions." });
+    }
+
+    const shareIndex = folder.sharedWith.findIndex((s) => {
+      if (!s.user) return false;
+      const sUserId = s.user._id ? s.user._id.toString() : s.user.toString();
+      return sUserId === userId.toString();
+    });
+
+    if (shareIndex === -1) {
+      return res.status(404).json({ message: "User is not a collaborator on this folder." });
+    }
+
+    folder.sharedWith[shareIndex].permission = permission;
+    await folder.save();
+
+    const updatedFolder = await Folder.findById(folderId)
+      .populate("owner", "name schoolName email")
+      .populate("sharedWith.user", "name schoolName email")
+      .populate("resources");
+
+    return res.status(200).json(updatedFolder);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 // Route registrations for Invite
 router.post("/:id/invite", authMiddleware, inviteUserHandler);
 router.post("/:id/invite/:userId", authMiddleware, inviteUserHandler);
 router.post("/:id/collaborators", authMiddleware, inviteUserHandler);
+
+// Route registrations for Updating Collaborator Permission
+router.put("/:id/collaborators/:userId/permission", authMiddleware, updatePermissionHandler);
+router.post("/:id/collaborators/:userId/permission", authMiddleware, updatePermissionHandler);
+router.put("/:id/permissions/:userId", authMiddleware, updatePermissionHandler);
+router.patch("/:id/collaborators/:userId", authMiddleware, updatePermissionHandler);
 
 // Route registrations for Remove
 router.delete("/:id/invite/:userId", authMiddleware, removeUserHandler);

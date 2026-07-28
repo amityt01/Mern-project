@@ -194,6 +194,7 @@ const initialState = {
   isAddingResource: false,
   deletingFolderId: null,
   removingResourceId: null,
+  updatingPermissionUserId: null,
   error: null,
   sharedError: null,
 };
@@ -301,6 +302,25 @@ const folderSlice = createSlice({
       })
       .addCase(inviteUserToFolder.rejected, (state, action) => {
         state.isSharing = false;
+        state.error = action.payload;
+      })
+
+      // Update Collaborator Permission
+      .addCase(updateCollaboratorPermission.pending, (state, action) => {
+        state.updatingPermissionUserId = action.meta.arg.userId || action.meta.arg.email;
+        state.error = null;
+      })
+      .addCase(updateCollaboratorPermission.fulfilled, (state, action) => {
+        state.updatingPermissionUserId = null;
+        state.folders = state.folders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+        state.sharedFolders = state.sharedFolders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+      })
+      .addCase(updateCollaboratorPermission.rejected, (state, action) => {
+        state.updatingPermissionUserId = null;
         state.error = action.payload;
       })
 

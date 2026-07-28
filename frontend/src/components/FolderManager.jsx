@@ -6,6 +6,8 @@ import {
   createFolder,
   deleteFolder,
   shareFolder,
+  updateCollaboratorPermission,
+  removeUserFromFolder,
   addResourceToFolder,
   removeResourceFromFolder,
   clearFolderError,
@@ -27,6 +29,7 @@ function FolderManager() {
     isSharing,
     deletingFolderId,
     removingResourceId,
+    updatingPermissionUserId,
     error,
     sharedError,
   } = useSelector((state) => state.folders);
@@ -148,6 +151,78 @@ function FolderManager() {
       setShareError("");
     } else {
       setShareError(action.payload || "Failed to share folder.");
+    }
+  };
+
+  const handleUpdatePermission = async (collabUser, newPermission) => {
+    if (!activeFolder) return;
+    const userId = collabUser?._id || (typeof collabUser === "string" ? collabUser : null);
+    const email = collabUser?.email;
+    const collabName = collabUser?.name || "Educator";
+
+    const action = await dispatch(
+      updateCollaboratorPermission({
+        id: activeFolder._id,
+        userId,
+        email,
+        permission: newPermission,
+      })
+    );
+
+    if (updateCollaboratorPermission.fulfilled.match(action)) {
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Permission Updated",
+          message: `Changed permission for ${collabName} to ${
+            newPermission === "write" ? "Editor (Can Add/Remove)" : "Viewer (Read Only)"
+          }.`,
+        })
+      );
+    } else {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Permission Update Failed",
+          message: action.payload || "Failed to update collaborator permission.",
+        })
+      );
+    }
+  };
+
+  const handleRemoveCollaborator = async (collabUser) => {
+    if (!activeFolder) return;
+    const userId = collabUser?._id || (typeof collabUser === "string" ? collabUser : null);
+    const collabName = collabUser?.name || "Educator";
+
+    if (!userId) return;
+
+    if (
+      window.confirm(
+        `Are you sure you want to remove ${collabName} from folder "${activeFolder.name}"?`
+      )
+    ) {
+      const action = await dispatch(
+        removeUserFromFolder({ id: activeFolder._id, userId })
+      );
+
+      if (removeUserFromFolder.fulfilled.match(action)) {
+        dispatch(
+          addToast({
+            type: "info",
+            title: "Collaborator Removed",
+            message: `Removed ${collabName} from folder "${activeFolder.name}".`,
+          })
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Removal Failed",
+            message: action.payload || "Could not remove collaborator.",
+          })
+        );
+      }
     }
   };
 
@@ -507,19 +582,111 @@ function FolderManager() {
               </div>
             )}
 
-            {/* Collaborators List */}
-            {activeFolder.sharedWith?.length > 0 && (
-              <div className="folder-collaborators-list">
-                <strong>Collaborating Teachers:</strong>
-                <div className="collaborator-tags">
-                  {activeFolder.sharedWith.map((s) => (
-                    <span key={s.user?._id || s.user} className="collab-tag" title={s.user?.schoolName}>
-                      {s.user?.name || "Educator"} ({s.permission === "write" ? "Editor" : "Viewer"})
-                    </span>
-                  ))}
+            {/* Collaborators & Permission Management Section */}
+            <div className="folder-collaborators-section">
+              <div className="collaborators-section-header">
+                <div className="section-title-with-badge">
+                  <h3>Collaborator Permissions</h3>
+                  <span className="collaborators-count-badge">
+                    {activeFolder.sharedWith?.length || 0} Collaborator{activeFolder.sharedWith?.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
+                {activeFolder.owner?._id === user?.id && (
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={() => {
+                      setSharingFolderId(
+                        sharingFolderId === activeFolder._id ? null : activeFolder._id
+                      );
+                      setShareError("");
+                    }}
+                  >
+                    + Add Collaborator
+                  </button>
+                )}
               </div>
-            )}
+
+              {!activeFolder.sharedWith || activeFolder.sharedWith.length === 0 ? (
+                <div className="empty-collaborators-box">
+                  <svg className="collab-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  <p>No collaborators added to this folder yet.</p>
+                  {activeFolder.owner?._id === user?.id && (
+                    <span className="empty-collab-subtext">Click "+ Add Collaborator" above or "Share Folder" to invite teachers to view or edit this folder.</span>
+                  )}
+                </div>
+              ) : (
+                <div className="collaborator-permission-cards">
+                  {activeFolder.sharedWith.map((s) => {
+                    const collabUser = s.user;
+                    const collabId = collabUser?._id || collabUser;
+                    const collabName = collabUser?.name || "Educator";
+                    const collabEmail = collabUser?.email || "";
+                    const collabSchool = collabUser?.schoolName || "";
+                    const isOwner = activeFolder.owner?._id === user?.id || activeFolder.owner === user?.id;
+                    const isCurrentUpdating = updatingPermissionUserId === collabId || updatingPermissionUserId === collabEmail;
+
+                    return (
+                      <div key={collabId} className="collaborator-permission-card">
+                        <div className="collab-profile">
+                          <div className="collab-avatar">
+                            {collabName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="collab-meta">
+                            <h4 className="collab-name">{collabName}</h4>
+                            {collabEmail && <span className="collab-email">{collabEmail}</span>}
+                            {collabSchool && <span className="collab-school">{collabSchool}</span>}
+                          </div>
+                        </div>
+
+                        <div className="collab-permission-controls">
+                          {isOwner ? (
+                            <div className="permission-select-wrapper">
+                              <select
+                                className={`collab-permission-dropdown ${s.permission}`}
+                                value={s.permission}
+                                onChange={(e) => handleUpdatePermission(collabUser, e.target.value)}
+                                disabled={isCurrentUpdating}
+                                title="Change Collaborator Permission"
+                              >
+                                <option value="read">Viewer (Read Only)</option>
+                                <option value="write">Editor (Can Add/Remove)</option>
+                              </select>
+                              {isCurrentUpdating && <span className="btn-spinner permission-spinner" />}
+                            </div>
+                          ) : (
+                            <span className={`collab-role-pill ${s.permission === "write" ? "editor" : "viewer"}`}>
+                              {s.permission === "write" ? "Editor" : "Viewer"}
+                            </span>
+                          )}
+
+                          {isOwner && (
+                            <button
+                              type="button"
+                              className="btn-remove-collaborator"
+                              onClick={() => handleRemoveCollaborator(collabUser)}
+                              disabled={isCurrentUpdating}
+                              title={`Remove ${collabName} from folder`}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="remove-icon">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                              <span>Remove</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Resources List Inside Folder */}
             <div className="folder-resources-section">
