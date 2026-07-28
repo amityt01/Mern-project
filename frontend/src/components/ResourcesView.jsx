@@ -121,6 +121,9 @@ function ResourcesView() {
               message: `"${action.payload.title}" has been updated successfully.`,
             })
           );
+          if (selectedResource && selectedResource._id === action.payload._id) {
+            setSelectedResource(action.payload);
+          }
           closeModal();
         } else {
           setModalError(action.payload || "Failed to update resource.");
@@ -426,13 +429,21 @@ function ResourcesView() {
               )}
 
               {user && (selectedResource.author?._id === user.id || selectedResource.author === user.id || user.role === "Admin") && (
-                <button
-                  className="btn-danger-outline"
-                  onClick={(e) => openDeleteConfirm(selectedResource, e)}
-                  disabled={deletingId === selectedResource._id}
-                >
-                  {deletingId === selectedResource._id ? "Deleting..." : "Delete"}
-                </button>
+                <>
+                  <button
+                    className="btn-secondary"
+                    onClick={(e) => openEditModal(selectedResource, e)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="btn-danger-outline"
+                    onClick={(e) => openDeleteConfirm(selectedResource, e)}
+                    disabled={deletingId === selectedResource._id}
+                  >
+                    {deletingId === selectedResource._id ? "Deleting..." : "Delete"}
+                  </button>
+                </>
               )}
 
               <button

@@ -521,8 +521,15 @@ function setupMockMongoose() {
   };
 
   // Mock Types.ObjectId
+  const mockObjectId = (id) => id || "mock_id";
+  mockObjectId.isValid = (id) => {
+    if (!id) return false;
+    const str = id.toString();
+    if (str.startsWith("mock_") || str.startsWith("res_mock_") || str.startsWith("user_mock_") || str.startsWith("folder_mock_")) return true;
+    return /^[0-9a-fA-F]{24}$/.test(str);
+  };
   mongoose.Types = {
-    ObjectId: (id) => id || "mock_id",
+    ObjectId: mockObjectId,
   };
 }
 

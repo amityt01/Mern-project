@@ -170,7 +170,9 @@ router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.s
     }
 
     // Check ownership or Admin role
-    const isOwner = resource.author.toString() === req.user.id;
+    const authorId = resource.author ? (resource.author._id || resource.author).toString() : "";
+    const userId = (req.user.id || req.user._id || "").toString();
+    const isOwner = authorId === userId;
     const isAdmin = req.user.role === "Admin";
 
     if (!isOwner && !isAdmin) {

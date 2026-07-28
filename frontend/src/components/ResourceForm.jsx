@@ -199,6 +199,7 @@ function ResourceForm({ onSubmit, initialData, onCancel, isSaving = false, submi
         fileName: selectedFile.name,
         fileSize: selectedFile.size,
         fileType: selectedFile.type,
+        ...(selectedFile.fileObject && { fileObject: selectedFile.fileObject }),
       }),
     };
 

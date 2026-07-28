@@ -28,13 +28,32 @@ export const createResource = createAsyncThunk(
   async (resourceData, { getState, rejectWithValue }) => {
     try {
       const token = getState().auth.token;
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
+      let body;
+
+      if (resourceData instanceof FormData) {
+        body = resourceData;
+      } else if (resourceData && resourceData.fileObject) {
+        const formData = new FormData();
+        Object.keys(resourceData).forEach((key) => {
+          if (key === "fileObject") {
+            formData.append("file", resourceData.fileObject);
+          } else if (resourceData[key] !== undefined && resourceData[key] !== null) {
+            formData.append(key, resourceData[key]);
+          }
+        });
+        body = formData;
+      } else {
+        headers["Content-Type"] = "application/json";
+        body = JSON.stringify(resourceData);
+      }
+
       const response = await fetch(`${API_BASE}/resources`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(resourceData),
+        headers,
+        body,
       });
       const data = await response.json();
       if (!response.ok) return rejectWithValue(data.message || "Failed to create resource");
@@ -50,13 +69,32 @@ export const updateResource = createAsyncThunk(
   async ({ id, resourceData }, { getState, rejectWithValue }) => {
     try {
       const token = getState().auth.token;
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
+      let body;
+
+      if (resourceData instanceof FormData) {
+        body = resourceData;
+      } else if (resourceData && resourceData.fileObject) {
+        const formData = new FormData();
+        Object.keys(resourceData).forEach((key) => {
+          if (key === "fileObject") {
+            formData.append("file", resourceData.fileObject);
+          } else if (resourceData[key] !== undefined && resourceData[key] !== null) {
+            formData.append(key, resourceData[key]);
+          }
+        });
+        body = formData;
+      } else {
+        headers["Content-Type"] = "application/json";
+        body = JSON.stringify(resourceData);
+      }
+
       const response = await fetch(`${API_BASE}/resources/${id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(resourceData),
+        headers,
+        body,
       });
       const data = await response.json();
       if (!response.ok) return rejectWithValue(data.message || "Failed to update resource");
