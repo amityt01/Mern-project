@@ -277,7 +277,14 @@ const folderSlice = createSlice({
       })
       .addCase(createFolder.fulfilled, (state, action) => {
         state.isCreating = false;
-        state.folders.unshift(action.payload);
+        if (!Array.isArray(state.folders)) {
+          state.folders = [action.payload];
+        } else {
+          state.folders = [
+            action.payload,
+            ...state.folders.filter((f) => f._id !== action.payload._id),
+          ];
+        }
       })
       .addCase(createFolder.rejected, (state, action) => {
         state.isCreating = false;
