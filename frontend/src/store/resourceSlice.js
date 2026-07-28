@@ -7,13 +7,16 @@ export const fetchResources = createAsyncThunk(
   async (filters = {}, { rejectWithValue }) => {
     try {
       const { category, subject, gradeLevel, search } = filters;
-      let url = new URL(`${API_BASE}/resources`);
-      if (category) url.searchParams.append("category", category);
-      if (subject) url.searchParams.append("subject", subject);
-      if (gradeLevel) url.searchParams.append("gradeLevel", gradeLevel);
-      if (search) url.searchParams.append("search", search);
+      const params = new URLSearchParams();
+      if (category) params.append("category", category);
+      if (subject) params.append("subject", subject);
+      if (gradeLevel) params.append("gradeLevel", gradeLevel);
+      if (search) params.append("search", search);
 
-      const response = await fetch(url.toString());
+      const queryString = params.toString();
+      const url = `${API_BASE}/resources${queryString ? `?${queryString}` : ""}`;
+
+      const response = await fetch(url);
       const data = await response.json();
       if (!response.ok) return rejectWithValue(data.message || "Failed to fetch resources");
       return data;

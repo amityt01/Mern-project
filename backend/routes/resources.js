@@ -28,7 +28,10 @@ router.get("/", async (req, res) => {
     if (subject) query.subject = subject;
     if (gradeLevel) query.gradeLevel = gradeLevel;
     if (search) {
-      query.title = { $regex: search, $options: "i" };
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
     }
 
     const resources = await Resource.find(query)
