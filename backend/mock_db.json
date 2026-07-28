@@ -1,0 +1,96 @@
+{
+  "users": [
+    {
+      "_id": "mock_qqy6mc9rc",
+      "createdAt": "2026-07-19T08:01:11.037Z",
+      "name": "Test Teacher",
+      "email": "teacher@test.com",
+      "password": "e5ee7d30d269943a7c8b01fb37437113:c3fe4cf32ffa3e41c93a17cb9bb01246559d849bbb471a8ec996e9f0880441a5a6591dad193176b1f6c56dd0f44f0765610465bd75aeed3917790f894d073729",
+      "schoolName": "Test School"
+    },
+    {
+      "_id": "mock_6n12jjl5y",
+      "createdAt": "2026-07-19T08:02:26.254Z",
+      "name": "Sarah Jenkins",
+      "email": "sarah.j@school.org",
+      "password": "efa55bc56815896702483c17c9d92ac2:304f6e7878da90af88d71152b6c56e4131cddfad20632ebf8170468647e1cca35307208c597c3ce12109bf20fce9432aaf19bef8bc3570c37991ad1276123a85",
+      "schoolName": "Pine Ridge Rural School"
+    },
+    {
+      "_id": "mock_srkammeo2",
+      "createdAt": "2026-07-21T05:47:16.737Z",
+      "name": "Maria Rodriguez",
+      "email": "maria.r@edu.org",
+      "password": "6c20812093fb6513178f021016b080c4:5fd811120c846957cf778078b8469ba6d2362e6d19623cbb3d5d7ccf5aaff4b222dbea259750123ec645ce6d828b9a2aaaecd2ab1ce6a92be09a5b758f2bf484",
+      "schoolName": "Oakridge High"
+    },
+    {
+      "_id": "mock_nso6a65ms",
+      "createdAt": "2026-07-21T09:00:19.279Z",
+      "name": "Dr. Sarah Jenkins",
+      "email": "sarah.jenkins@edureach.org",
+      "password": "8c2ffa6684fb612e79e4254c4470c00e:c5c4190eef8d060e42693d936f303c0211c52b9a7b35ca66abe5b1fd41fbb183f78d07d17e61c7c0d3faffc12432063ff9c6826416e29fdcefe0d28caf2dbb32",
+      "schoolName": "Pine Ridge Rural School"
+    },
+    {
+      "_id": "mock_m345u69ui",
+      "createdAt": "2026-07-21T09:01:49.988Z",
+      "name": "Alex Vance",
+      "email": "alex.vance@school.org",
+      "password": "6cea9502bb4c2e8b61f0ee93cfcbfacf:113fbb2e1a84e2d163a511e84373e5f1516d0fcb1a3adb00bf3387aa706e60bbc395d828afde7036761178128d2674f33ec1433b9168630240970bc979dcd49a",
+      "schoolName": "Oakridge Community School"
+    },
+    {
+      "_id": "mock_ngpcbailw",
+      "createdAt": "2026-07-21T09:02:49.233Z",
+      "name": "Jane Doe",
+      "email": "newteacher_1784624569215@school.org",
+      "password": "782c21e61489bc8e056fab9c47fbcf36:4c2d8bd8d901be59327bc041e6e4225d7d3084ba609e6467814199d90ea0607a9198794bcdfdbce343f9add0a3c483daeb407328a8bb89f459aa8d2ea6b128db",
+      "schoolName": "Greenwood High"
+    },
+    {
+      "_id": "mock_erdf6ai5r",
+      "createdAt": "2026-07-21T09:28:00.338Z",
+      "name": "Test Teacher",
+      "email": "testuser_1784626080304@example.com",
+      "password": "e2059e3f9f2e788e5ac242fbd8a842ce:23821d102d9d4888689dbd379346a002bb5c969419e06f418bb0d90d9858c5edfb2f17e1f631e13792f832889c66513bf45c968b5e9d782dea0a310019fe45f6",
+      "schoolName": "Greenwood Academy"
+    }
+  ],
+  "resources": [
+    {
+      "_id": "res_mock_1",
+      "title": "Introduction to Fractions",
+      "description": "A comprehensive guide to teaching fractions to primary schoolers.",
+      "category": "Lesson Plan",
+      "subject": "Math",
+      "gradeLevel": "Primary",
+      "content": "Lesson content: 1. Fractions overview. 2. Visual exercises. 3. Interactive quizzes.",
+      "author": "user_mock_admin",
+      "downloadCount": 15,
+      "createdAt": "2026-07-14T08:00:27.353Z"
+    },
+    {
+      "_id": "res_mock_2",
+      "title": "Photosynthesis Science Lab",
+      "description": "Hands-on activity explaining the light cycle using local plants.",
+      "category": "Activity",
+      "subject": "Science",
+      "gradeLevel": "Middle",
+      "content": "Science experiment: tracking sunlight, leaf coloration, and oxygen bubbles.",
+      "author": "user_mock_admin",
+      "downloadCount": 42,
+      "createdAt": "2026-07-17T08:00:27.354Z"
+    }
+  ],
+  "folders": [],
+  "students": [
+    {
+      "_id": "mock_ae97fzmil",
+      "createdAt": "2026-07-21T09:01:50.003Z",
+      "name": "Michael Scott",
+      "email": "michael.scott@student.edu",
+      "age": 20
+    }
+  ]
+}
