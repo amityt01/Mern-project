@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchTopResources } from "../store/resourceSlice";
 import { TableRowSkeleton } from "./SkeletonLoader";
 
 /**
  * TopPerformingResources - Component to display top performing educational resources.
  * Displays resource title, author, views, downloads, loading skeleton, and empty states.
- * Can fetch data directly from API or receive resources, isLoading, and error via props.
+ * Can fetch data via Redux API thunk or receive resources, isLoading, and error via props.
  */
 function TopPerformingResources({
   resources: initialResources,
@@ -15,60 +17,30 @@ function TopPerformingResources({
   showSearch = true,
   onRefresh,
 }) {
-  const [resources, setResources] = useState(initialResources || []);
-  const [isLoading, setIsLoading] = useState(propIsLoading !== undefined ? propIsLoading : !initialResources);
-  const [error, setError] = useState(propError || null);
+  const dispatch = useDispatch();
+  const { topResources: reduxTopResources, isLoadingTop: reduxIsLoading, topError: reduxError } = useSelector(
+    (state) => state.resources
+  );
+
   const [searchFilter, setSearchFilter] = useState("");
 
-  // Synchronize when props change
-  useEffect(() => {
-    if (initialResources !== undefined) {
-      setResources(initialResources);
-    }
-  }, [initialResources]);
+  // Determine resources, loading, and error states from props or Redux store
+  const resources = initialResources !== undefined ? initialResources : reduxTopResources;
+  const isLoading = propIsLoading !== undefined ? propIsLoading : reduxIsLoading;
+  const error = propError !== undefined ? propError : reduxError;
 
-  useEffect(() => {
-    if (propIsLoading !== undefined) {
-      setIsLoading(propIsLoading);
-    }
-  }, [propIsLoading]);
-
-  useEffect(() => {
-    if (propError !== undefined) {
-      setError(propError);
-    }
-  }, [propError]);
-
-  // Fetch top resources directly if no resources prop was provided
-  const fetchTopResources = async () => {
-    if (initialResources !== undefined) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("http://localhost:5050/api/resources/top");
-      if (!res.ok) {
-        throw new Error("Failed to fetch top performing resources.");
-      }
-      const data = await res.json();
-      setResources(Array.isArray(data) ? data : data.topResources || []);
-    } catch (err) {
-      setError(err.message || "Network error fetching top performing resources.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Fetch top resources via Redux action if no resources prop was provided
   useEffect(() => {
     if (initialResources === undefined) {
-      fetchTopResources();
+      dispatch(fetchTopResources());
     }
-  }, []);
+  }, [dispatch, initialResources]);
 
   const handleRetry = () => {
     if (onRefresh) {
       onRefresh();
     } else {
-      fetchTopResources();
+      dispatch(fetchTopResources());
     }
   };
 

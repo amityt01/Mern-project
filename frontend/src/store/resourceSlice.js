@@ -26,6 +26,20 @@ export const fetchResources = createAsyncThunk(
   }
 );
 
+export const fetchTopResources = createAsyncThunk(
+  "resources/fetchTopResources",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE}/resources/top`);
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to fetch top resources");
+      return Array.isArray(data) ? data : data.topResources || [];
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
 export const createResource = createAsyncThunk(
   "resources/createResource",
   async (resourceData, { getState, rejectWithValue }) => {
@@ -176,12 +190,15 @@ export const downloadResource = createAsyncThunk(
 
 const initialState = {
   resources: [],
+  topResources: [],
   isLoading: false,
+  isLoadingTop: false,
   isSaving: false,
   isUploading: false,
   deletingId: null,
   downloadingId: null,
   error: null,
+  topError: null,
   filters: {
     category: "",
     subject: "",
@@ -218,6 +235,20 @@ const resourceSlice = createSlice({
       .addCase(fetchResources.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // Fetch Top Resources
+      .addCase(fetchTopResources.pending, (state) => {
+        state.isLoadingTop = true;
+        state.topError = null;
+      })
+      .addCase(fetchTopResources.fulfilled, (state, action) => {
+        state.isLoadingTop = false;
+        state.topResources = action.payload;
+      })
+      .addCase(fetchTopResources.rejected, (state, action) => {
+        state.isLoadingTop = false;
+        state.topError = action.payload;
       })
 
       // Create Resource
