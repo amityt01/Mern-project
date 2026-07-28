@@ -184,6 +184,38 @@ export const fetchSharedFolders = createAsyncThunk(
   }
 );
 
+export const updateCollaboratorPermission = createAsyncThunk(
+  "folders/updateCollaboratorPermission",
+  async ({ id, userId, email, permission }, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const targetId = userId || email;
+      const response = await fetch(
+        `${API_BASE}/folders/${id}/collaborators/${targetId}/permission`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ permission }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok)
+        return rejectWithValue(
+          data.message || "Failed to update collaborator permission"
+        );
+      return data;
+    } catch (err) {
+      return rejectWithValue(
+        err.message || "Network error. Unable to connect to server."
+      );
+    }
+  }
+);
+
+
 const initialState = {
   folders: [],
   sharedFolders: [],
