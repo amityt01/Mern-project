@@ -257,30 +257,59 @@ function FolderManager() {
     setUploadServerError("");
     setIsUploadingResource(true);
 
-    const resourceAction = await dispatch(createResource(formData));
+    try {
+      const resourceAction = await dispatch(createResource(formData));
 
-    if (createResource.fulfilled.match(resourceAction)) {
-      const createdResource = resourceAction.payload;
-      const folderAction = await dispatch(
-        addResourceToFolder({ id: activeFolder._id, resourceId: createdResource._id })
-      );
+      if (createResource.fulfilled.match(resourceAction)) {
+        const createdResource = resourceAction.payload;
+        const folderAction = await dispatch(
+          addResourceToFolder({ id: activeFolder._id, resourceId: createdResource._id })
+        );
 
-      if (addResourceToFolder.fulfilled.match(folderAction)) {
+        if (addResourceToFolder.fulfilled.match(folderAction)) {
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Resource Uploaded",
+              message: `"${createdResource.title}" was uploaded and added to folder "${activeFolder.name}".`,
+            })
+          );
+          setIsUploadModalOpen(false);
+        } else {
+          const errMsg = folderAction.payload || "Failed to associate resource with folder.";
+          setUploadServerError(errMsg);
+          dispatch(
+            addToast({
+              type: "error",
+              title: "Folder Association Failed",
+              message: errMsg,
+            })
+          );
+        }
+      } else {
+        const errMsg = resourceAction.payload || "Failed to create resource.";
+        setUploadServerError(errMsg);
         dispatch(
           addToast({
-            type: "success",
-            title: "Resource Uploaded",
-            message: `"${createdResource.title}" was uploaded and added to folder "${activeFolder.name}".`,
+            type: "error",
+            title: "Upload Failed",
+            message: errMsg,
           })
         );
-        setIsUploadModalOpen(false);
-      } else {
-        setUploadServerError(folderAction.payload || "Failed to associate resource with folder.");
       }
-    } else {
-      setUploadServerError(resourceAction.payload || "Failed to create resource.");
+    } catch (err) {
+      const errMsg = err.message || "An unexpected error occurred.";
+      setUploadServerError(errMsg);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Upload Failed",
+          message: errMsg,
+        })
+      );
+    } finally {
+      setIsUploadingResource(false);
     }
-    setIsUploadingResource(false);
   };
 
   const getFolderRole = (folder) => {
@@ -346,6 +375,7 @@ function FolderManager() {
               onSubmit={handleUploadToFolderSubmit}
               onCancel={() => setIsUploadModalOpen(false)}
               isSaving={isUploadingResource}
+              serverError={uploadServerError}
               submitText={isUploadingResource ? "Uploading..." : "Upload & Save to Folder"}
             />
           </div>

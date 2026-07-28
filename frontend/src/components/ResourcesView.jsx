@@ -126,7 +126,15 @@ function ResourcesView() {
           }
           closeModal();
         } else {
-          setModalError(action.payload || "Failed to update resource.");
+          const errMsg = action.payload || "Failed to update resource.";
+          setModalError(errMsg);
+          dispatch(
+            addToast({
+              type: "error",
+              title: "Update Failed",
+              message: errMsg,
+            })
+          );
         }
       } else {
         const action = await dispatch(createResource(formData));
@@ -140,11 +148,27 @@ function ResourcesView() {
           );
           closeModal();
         } else {
-          setModalError(action.payload || "Failed to create resource.");
+          const errMsg = action.payload || "Failed to create resource.";
+          setModalError(errMsg);
+          dispatch(
+            addToast({
+              type: "error",
+              title: "Upload Failed",
+              message: errMsg,
+            })
+          );
         }
       }
     } catch (err) {
-      setModalError(err.message || "An unexpected error occurred.");
+      const errMsg = err.message || "An unexpected error occurred.";
+      setModalError(errMsg);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Upload Failed",
+          message: errMsg,
+        })
+      );
     }
   };
 
@@ -351,6 +375,7 @@ function ResourcesView() {
               initialData={editingResource}
               onCancel={closeModal}
               isSaving={isSaving}
+              serverError={modalError}
               submitText={
                 isSaving
                   ? editingResource ? "Saving Changes..." : "Publishing..."

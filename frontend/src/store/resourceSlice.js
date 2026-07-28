@@ -38,11 +38,14 @@ export const createResource = createAsyncThunk(
 
       if (resourceData instanceof FormData) {
         body = resourceData;
-      } else if (resourceData && resourceData.fileObject) {
+      } else if (resourceData && (resourceData.fileObject || resourceData.file)) {
         const formData = new FormData();
         Object.keys(resourceData).forEach((key) => {
-          if (key === "fileObject") {
-            formData.append("file", resourceData.fileObject);
+          if (key === "fileObject" || key === "file") {
+            const fileVal = resourceData.fileObject || resourceData.file;
+            if (fileVal instanceof File || fileVal instanceof Blob) {
+              formData.append("file", fileVal);
+            }
           } else if (resourceData[key] !== undefined && resourceData[key] !== null) {
             formData.append(key, resourceData[key]);
           }
@@ -67,6 +70,30 @@ export const createResource = createAsyncThunk(
   }
 );
 
+export const uploadResourceFile = createAsyncThunk(
+  "resources/uploadResourceFile",
+  async (file, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`${API_BASE}/resources/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to upload file");
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
 export const updateResource = createAsyncThunk(
   "resources/updateResource",
   async ({ id, resourceData }, { getState, rejectWithValue }) => {
@@ -79,11 +106,14 @@ export const updateResource = createAsyncThunk(
 
       if (resourceData instanceof FormData) {
         body = resourceData;
-      } else if (resourceData && resourceData.fileObject) {
+      } else if (resourceData && (resourceData.fileObject || resourceData.file)) {
         const formData = new FormData();
         Object.keys(resourceData).forEach((key) => {
-          if (key === "fileObject") {
-            formData.append("file", resourceData.fileObject);
+          if (key === "fileObject" || key === "file") {
+            const fileVal = resourceData.fileObject || resourceData.file;
+            if (fileVal instanceof File || fileVal instanceof Blob) {
+              formData.append("file", fileVal);
+            }
           } else if (resourceData[key] !== undefined && resourceData[key] !== null) {
             formData.append(key, resourceData[key]);
           }
@@ -148,6 +178,7 @@ const initialState = {
   resources: [],
   isLoading: false,
   isSaving: false,
+  isUploading: false,
   deletingId: null,
   downloadingId: null,
   error: null,
@@ -200,6 +231,19 @@ const resourceSlice = createSlice({
       })
       .addCase(createResource.rejected, (state, action) => {
         state.isSaving = false;
+        state.error = action.payload;
+      })
+
+      // Upload Resource File
+      .addCase(uploadResourceFile.pending, (state) => {
+        state.isUploading = true;
+        state.error = null;
+      })
+      .addCase(uploadResourceFile.fulfilled, (state) => {
+        state.isUploading = false;
+      })
+      .addCase(uploadResourceFile.rejected, (state, action) => {
+        state.isUploading = false;
         state.error = action.payload;
       })
 

@@ -15,7 +15,14 @@ const ALLOWED_FILE_TYPES = [
 const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt", ".png", ".jpg", ".jpeg"];
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
-function ResourceForm({ onSubmit, initialData, onCancel, isSaving = false, submitText = "Share Resource" }) {
+function ResourceForm({
+  onSubmit,
+  initialData,
+  onCancel,
+  isSaving = false,
+  submitText = "Share Resource",
+  serverError = null,
+}) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -192,14 +199,17 @@ function ResourceForm({ onSubmit, initialData, onCancel, isSaving = false, submi
       return;
     }
 
-    // Attach file metadata if file is present
+    // Attach file metadata and File object if present
     const submissionData = {
       ...formData,
       ...(selectedFile && {
         fileName: selectedFile.name,
         fileSize: selectedFile.size,
         fileType: selectedFile.type,
-        ...(selectedFile.fileObject && { fileObject: selectedFile.fileObject }),
+        ...(selectedFile.fileObject && {
+          fileObject: selectedFile.fileObject,
+          file: selectedFile.fileObject,
+        }),
       }),
     };
 
@@ -208,6 +218,16 @@ function ResourceForm({ onSubmit, initialData, onCancel, isSaving = false, submi
 
   return (
     <form onSubmit={handleSubmit} className="resource-upload-form" noValidate>
+      {serverError && (
+        <div className="modal-error-banner" role="alert" style={{ marginBottom: "16px" }}>
+          <svg className="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>{serverError}</span>
+        </div>
+      )}
       {initialData && (
         <div className="edit-mode-banner" style={{
           marginBottom: "16px",
