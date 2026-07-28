@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const router = express.Router();
 const Resource = require("../models/Resource");
 const Folder = require("../models/Folder");
-const { authMiddleware, authorizeRoles } = require("../middleware/auth");
+const { authMiddleware, authorizeRoles, authorizePermissions, optionalAuth } = require("../middleware/auth");
 const upload = require("../middleware/upload");
 const { exportUsageCsv } = require("./analytics");
 const { getFolderAccess } = require("./folders");
@@ -13,14 +13,14 @@ const { getFolderAccess } = require("./folders");
 // @route   GET /api/resources/csv
 // @desc    Generate and download CSV usage report for resources within selected date range
 if (exportUsageCsv) {
-  router.get("/export", exportUsageCsv);
-  router.get("/export-csv", exportUsageCsv);
-  router.get("/csv", exportUsageCsv);
+  router.get("/export", optionalAuth, exportUsageCsv);
+  router.get("/export-csv", optionalAuth, exportUsageCsv);
+  router.get("/csv", optionalAuth, exportUsageCsv);
 }
 
 // @route   GET /api/resources
-// @desc    Get all resources with optional query filters (category, subject, gradeLevel, search)
-router.get("/", async (req, res) => {
+// @desc    Get all resources with optional query filters (category, subject, gradeLevel, search) (Public / Optional Auth)
+router.get("/", optionalAuth, async (req, res) => {
   try {
     const { category, subject, gradeLevel, search } = req.query;
     let query = {};
@@ -46,8 +46,8 @@ router.get("/", async (req, res) => {
 });
 
 // @route   GET /api/resources/top
-// @desc    Get top 5 performing resources sorted by download count
-router.get("/top", async (req, res) => {
+// @desc    Get top 5 performing resources sorted by download count (Public / Optional Auth)
+router.get("/top", optionalAuth, async (req, res) => {
   try {
     const topResources = await Resource.find()
       .populate("author", "name schoolName")
@@ -69,7 +69,7 @@ router.get("/top", async (req, res) => {
 });
 
 // @route   POST /api/resources/upload
-// @desc    Upload resource file and return file metadata / store in MongoDB
+// @desc    Upload resource file and return file metadata / store in MongoDB (Protected: Admin, Educator)
 router.post("/upload", authMiddleware, authorizeRoles("Admin", "Educator"), upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -90,9 +90,13 @@ router.post("/upload", authMiddleware, authorizeRoles("Admin", "Educator"), uplo
 });
 
 // @route   GET /api/resources/:id
-// @desc    Get details of a single resource
-router.get("/:id", async (req, res) => {
+// @desc    Get details of a single resource (Public / Optional Auth)
+router.get("/:id", optionalAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid resource ID format." });
+    }
+
     const resource = await Resource.findById(req.params.id).populate("author", "name schoolName");
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
@@ -104,7 +108,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // @route   POST /api/resources
-// @desc    Create a resource with optional file upload (Admin, Educator)
+// @desc    Create a resource with optional file upload (Protected: Admin, Educator)
 router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), upload.single("file"), async (req, res) => {
   try {
     const { title, description, category, subject, gradeLevel } = req.body;
@@ -136,7 +140,7 @@ router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), upload.sin
     }
 
     const newResource = await Resource.create({
-      title,
+      title: title.trim(),
       description: description || "",
       category,
       subject,
@@ -157,15 +161,14 @@ router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), upload.sin
   }
 });
 
-// @route   PUT /api/resources/:id
-// @desc    Update a resource (authenticated, must be author or Admin)
-router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.single("file"), async (req, res) => {
+// Handler for updating a resource
+const updateResourceHandler = async (req, res) => {
   try {
     const { id } = req.params;
 
     // Validate resource ID format
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid resource ID" });
+      return res.status(400).json({ message: "Invalid resource ID format." });
     }
 
     let resource = await Resource.findById(id);
@@ -248,17 +251,23 @@ router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.s
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
+};
+
+// @route   PUT /api/resources/:id
+// @route   PATCH /api/resources/:id
+// @desc    Update a resource (Protected: Admin, Educator; must be author, Admin, or have folder write access)
+router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.single("file"), updateResourceHandler);
+router.patch("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.single("file"), updateResourceHandler);
 
 // @route   DELETE /api/resources/:id
-// @desc    Delete a resource (authenticated, must be author or Admin)
+// @desc    Delete a resource (Protected: Admin, Educator; must be author, Admin, or have folder write access)
 router.delete("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
     const { id } = req.params;
 
     // Validate resource ID format
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid resource ID" });
+      return res.status(400).json({ message: "Invalid resource ID format." });
     }
 
     const resource = await Resource.findById(id);
@@ -299,9 +308,13 @@ router.delete("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), async
 });
 
 // @route   POST /api/resources/:id/download
-// @desc    Increment download/usage count for a resource
-router.post("/:id/download", async (req, res) => {
+// @desc    Increment download/usage count for a resource (Public / Optional Auth)
+router.post("/:id/download", optionalAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid resource ID format." });
+    }
+
     const resource = await Resource.findByIdAndUpdate(
       req.params.id,
       { $inc: { downloadCount: 1 } },

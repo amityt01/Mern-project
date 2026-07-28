@@ -38,6 +38,19 @@ const authMiddleware = function (req, res, next) {
 };
 
 /**
+ * Middleware for optional authentication.
+ * If JWT token is provided, verifies it and sets req.user.
+ * If no token is provided, continues without error for public routes.
+ */
+const optionalAuth = function (req, res, next) {
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+    return authMiddleware(req, res, next);
+  }
+  next();
+};
+
+/**
  * Middleware to authorize access based on user role(s)
  * @param  {...string|string[]} allowedRoles 
  */
@@ -87,6 +100,8 @@ const authorizePermissions = (...requiredPermissions) => {
 
 module.exports = authMiddleware;
 module.exports.authMiddleware = authMiddleware;
+module.exports.optionalAuth = optionalAuth;
 module.exports.authorizeRoles = authorizeRoles;
 module.exports.authorizePermissions = authorizePermissions;
+
 

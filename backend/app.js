@@ -46,6 +46,7 @@ app.use("/api/auth", authRouter);
 app.use("/api", authRouter);
 app.use("/", authRouter);
 app.use("/api/resources", resourcesRouter);
+app.use("/resources", resourcesRouter);
 app.use("/api/folders", foldersRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/analytics", analyticsRouter);
