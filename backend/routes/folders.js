@@ -40,6 +40,29 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
+// @route   GET /api/folders/shared
+// @desc    Get folders shared with current user
+router.get("/shared", authMiddleware, async (req, res) => {
+  try {
+    const folders = await Folder.find({
+      "sharedWith.user": req.user.id
+    })
+      .populate("owner", "name schoolName email")
+      .populate("sharedWith.user", "name schoolName email")
+      .populate("resources", "title category subject gradeLevel")
+      .sort({ createdAt: -1 });
+
+    const sharedFolders = folders.filter((folder) => {
+      const ownerId = folder.owner && folder.owner._id ? folder.owner._id.toString() : folder.owner ? folder.owner.toString() : "";
+      return ownerId !== req.user.id;
+    });
+
+    res.json(sharedFolders);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // @route   POST /api/folders
 // @desc    Create a new folder
 router.post("/", authMiddleware, async (req, res) => {

@@ -121,15 +121,35 @@ export const removeResourceFromFolder = createAsyncThunk(
   }
 );
 
+export const fetchSharedFolders = createAsyncThunk(
+  "folders/fetchSharedFolders",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const response = await fetch(`${API_BASE}/folders/shared`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to fetch shared folders");
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
 const initialState = {
   folders: [],
+  sharedFolders: [],
   isLoading: false,
+  isLoadingShared: false,
   isCreating: false,
   isSharing: false,
   isAddingResource: false,
   deletingFolderId: null,
   removingResourceId: null,
   error: null,
+  sharedError: null,
 };
 
 const folderSlice = createSlice({
@@ -138,6 +158,7 @@ const folderSlice = createSlice({
   reducers: {
     clearFolderError: (state) => {
       state.error = null;
+      state.sharedError = null;
     },
   },
   extraReducers: (builder) => {
@@ -154,6 +175,20 @@ const folderSlice = createSlice({
       .addCase(fetchFolders.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // Fetch Shared Folders
+      .addCase(fetchSharedFolders.pending, (state) => {
+        state.isLoadingShared = true;
+        state.sharedError = null;
+      })
+      .addCase(fetchSharedFolders.fulfilled, (state, action) => {
+        state.isLoadingShared = false;
+        state.sharedFolders = action.payload;
+      })
+      .addCase(fetchSharedFolders.rejected, (state, action) => {
+        state.isLoadingShared = false;
+        state.sharedError = action.payload;
       })
 
       // Create Folder
@@ -178,6 +213,7 @@ const folderSlice = createSlice({
       .addCase(deleteFolder.fulfilled, (state, action) => {
         state.deletingFolderId = null;
         state.folders = state.folders.filter((f) => f._id !== action.payload);
+        state.sharedFolders = state.sharedFolders.filter((f) => f._id !== action.payload);
       })
       .addCase(deleteFolder.rejected, (state, action) => {
         state.deletingFolderId = null;
@@ -192,6 +228,9 @@ const folderSlice = createSlice({
       .addCase(shareFolder.fulfilled, (state, action) => {
         state.isSharing = false;
         state.folders = state.folders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+        state.sharedFolders = state.sharedFolders.map((f) =>
           f._id === action.payload._id ? action.payload : f
         );
       })
@@ -210,6 +249,9 @@ const folderSlice = createSlice({
         state.folders = state.folders.map((f) =>
           f._id === action.payload._id ? action.payload : f
         );
+        state.sharedFolders = state.sharedFolders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
       })
       .addCase(addResourceToFolder.rejected, (state, action) => {
         state.isAddingResource = false;
@@ -224,6 +266,9 @@ const folderSlice = createSlice({
       .addCase(removeResourceFromFolder.fulfilled, (state, action) => {
         state.removingResourceId = null;
         state.folders = state.folders.map((f) =>
+          f._id === action.payload._id ? action.payload : f
+        );
+        state.sharedFolders = state.sharedFolders.map((f) =>
           f._id === action.payload._id ? action.payload : f
         );
       })

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchFolders,
+  fetchSharedFolders,
   createFolder,
   deleteFolder,
   shareFolder,
@@ -15,12 +16,15 @@ function FolderManager() {
   const dispatch = useDispatch();
   const {
     folders,
+    sharedFolders,
     isLoading,
+    isLoadingShared,
     isCreating,
     isSharing,
     deletingFolderId,
     removingResourceId,
     error,
+    sharedError,
   } = useSelector((state) => state.folders);
   const { user } = useSelector((state) => state.auth);
 
@@ -36,19 +40,21 @@ function FolderManager() {
 
   useEffect(() => {
     dispatch(fetchFolders());
+    dispatch(fetchSharedFolders());
   }, [dispatch]);
 
   // Keep active folder in sync with updated list
   useEffect(() => {
     if (activeFolder) {
-      const updated = folders.find((f) => f._id === activeFolder._id);
+      const allFolders = [...folders, ...sharedFolders];
+      const updated = allFolders.find((f) => f._id === activeFolder._id);
       if (updated && updated !== activeFolder) {
         setActiveFolder(updated);
       } else if (!updated) {
         setActiveFolder(null);
       }
     }
-  }, [folders, activeFolder]);
+  }, [folders, sharedFolders, activeFolder]);
 
   const handleCreateFolder = async (e) => {
     e.preventDefault();
@@ -274,6 +280,57 @@ function FolderManager() {
                           {isDeleting ? "..." : "×"}
                         </button>
                       )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="folders-list-section" style={{ marginTop: "1.5rem" }}>
+          <h3>Shared with Me</h3>
+          {isLoadingShared ? (
+            <FolderItemSkeleton count={2} />
+          ) : sharedError ? (
+            <div className="folder-error-box">
+              <p>{sharedError}</p>
+              <button
+                className="btn-retry btn-retry-sm"
+                onClick={() => dispatch(fetchSharedFolders())}
+              >
+                Retry Shared
+              </button>
+            </div>
+          ) : sharedFolders.length === 0 ? (
+            <p className="no-folders-text">No folders shared with you yet.</p>
+          ) : (
+            <div className="folders-list">
+              {sharedFolders.map((folder) => {
+                const isActive = activeFolder && activeFolder._id === folder._id;
+                const role = getFolderRole(folder);
+
+                return (
+                  <div
+                    key={folder._id}
+                    className={`folder-item ${isActive ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveFolder(folder);
+                      setSharingFolderId(null);
+                      setShareError("");
+                    }}
+                  >
+                    <div className="folder-icon-title">
+                      <svg className="folder-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <div>
+                        <h4>{folder.name}</h4>
+                        <span className="folder-role-badge">{role}</span>
+                      </div>
+                    </div>
+                    <div className="folder-item-meta">
+                      <span>{folder.resources?.length || 0} items</span>
                     </div>
                   </div>
                 );
