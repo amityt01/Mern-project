@@ -469,6 +469,8 @@ function AnalyticsDashboard() {
             <span>Accounting for over 60% of total classroom downloads this quarter.</span>
           </div>
         </div>
+      </section>
+
       {/* Interactive Line Chart: Views vs Downloads */}
       <section className="analytics-chart-section">
         <AnalyticsLineChart data={filteredResourcesByDate} timeframe={timeframe} />

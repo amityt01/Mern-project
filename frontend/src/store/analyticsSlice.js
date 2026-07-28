@@ -4,19 +4,25 @@ const API_BASE = "http://localhost:5050/api";
 
 export const fetchAnalytics = createAsyncThunk(
   "analytics/fetchAnalytics",
-  async (params = {}, { rejectWithValue }) => {
+  async (params = {}, { getState, rejectWithValue }) => {
     try {
       const queryParams = new URLSearchParams();
       if (params?.startDate) queryParams.append("startDate", params.startDate);
       if (params?.endDate) queryParams.append("endDate", params.endDate);
 
       const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
-      const response = await fetch(`${API_BASE}/analytics${queryString}`);
+      const token = getState()?.auth?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE}/analytics${queryString}`, { headers });
       const data = await response.json();
       if (!response.ok) return rejectWithValue(data.message || "Failed to fetch analytics");
       return data;
     } catch (err) {
-      return rejectWithValue(err.message || "Network error");
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
     }
   }
 );
