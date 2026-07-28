@@ -38,6 +38,26 @@ const resourceSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  fileName: {
+    type: String,
+    default: "",
+  },
+  originalName: {
+    type: String,
+    default: "",
+  },
+  filePath: {
+    type: String,
+    default: "",
+  },
+  fileSize: {
+    type: Number,
+    default: 0,
+  },
+  fileType: {
+    type: String,
+    default: "",
+  },
   createdAt: {
     type: Date,
     default: Date.now,
