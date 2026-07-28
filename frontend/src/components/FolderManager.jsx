@@ -17,6 +17,7 @@ import { addToast } from "../store/toastSlice";
 import { FolderItemSkeleton, TableRowSkeleton } from "./SkeletonLoader";
 import FolderModal from "./FolderModal";
 import ResourceForm from "./ResourceForm";
+import FolderList from "./FolderList";
 
 function FolderManager() {
   const dispatch = useDispatch();
@@ -371,118 +372,42 @@ function FolderManager() {
 
         <div className="folders-list-section">
           <h3>My Folders</h3>
-          {isLoading ? (
-            <FolderItemSkeleton count={4} />
-          ) : error ? (
-            <div className="folder-error-box">
-              <p>{error}</p>
-              <button
-                className="btn-retry btn-retry-sm"
-                onClick={() => dispatch(fetchFolders())}
-              >
-                Retry Folders
-              </button>
-            </div>
-          ) : folders.length === 0 ? (
-            <p className="no-folders-text">No folders found. Create one above to begin.</p>
-          ) : (
-            <div className="folders-list">
-              {folders.map((folder) => {
-                const isActive = activeFolder && activeFolder._id === folder._id;
-                const role = getFolderRole(folder);
-                const isOwner = folder.owner?._id === user?.id || folder.owner === user?.id;
-                const isDeleting = deletingFolderId === folder._id;
-
-                return (
-                  <div
-                    key={folder._id}
-                    className={`folder-item ${isActive ? "active" : ""} ${isDeleting ? "folder-deleting" : ""}`}
-                    onClick={() => {
-                      if (!isDeleting) {
-                        setActiveFolder(folder);
-                        setSharingFolderId(null);
-                        setShareError("");
-                      }
-                    }}
-                  >
-                    <div className="folder-icon-title">
-                      <svg className="folder-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                      </svg>
-                      <div>
-                        <h4>{folder.name}</h4>
-                        <span className="folder-role-badge">{role}</span>
-                      </div>
-                    </div>
-                    <div className="folder-item-meta">
-                      <span>{folder.resources?.length || 0} items</span>
-                      {isOwner && (
-                        <button
-                          className="btn-folder-delete"
-                          onClick={(e) => handleDeleteFolder(folder._id, folder.name, e)}
-                          disabled={isDeleting}
-                          title="Delete Folder"
-                        >
-                          {isDeleting ? "..." : "×"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <FolderList
+            folders={folders}
+            activeFolder={activeFolder}
+            onSelectFolder={(folder) => {
+              setActiveFolder(folder);
+              setSharingFolderId(null);
+              setShareError("");
+            }}
+            onDeleteFolder={handleDeleteFolder}
+            isLoading={isLoading}
+            error={error}
+            onRetry={() => dispatch(fetchFolders())}
+            emptyMessage="No folders found. Create one above to begin."
+            deletingFolderId={deletingFolderId}
+            currentUserId={user?.id}
+            getFolderRole={getFolderRole}
+          />
         </div>
 
         <div className="folders-list-section" style={{ marginTop: "1.5rem" }}>
           <h3>Shared with Me</h3>
-          {isLoadingShared ? (
-            <FolderItemSkeleton count={2} />
-          ) : sharedError ? (
-            <div className="folder-error-box">
-              <p>{sharedError}</p>
-              <button
-                className="btn-retry btn-retry-sm"
-                onClick={() => dispatch(fetchSharedFolders())}
-              >
-                Retry Shared
-              </button>
-            </div>
-          ) : sharedFolders.length === 0 ? (
-            <p className="no-folders-text">No folders shared with you yet.</p>
-          ) : (
-            <div className="folders-list">
-              {sharedFolders.map((folder) => {
-                const isActive = activeFolder && activeFolder._id === folder._id;
-                const role = getFolderRole(folder);
-
-                return (
-                  <div
-                    key={folder._id}
-                    className={`folder-item ${isActive ? "active" : ""}`}
-                    onClick={() => {
-                      setActiveFolder(folder);
-                      setSharingFolderId(null);
-                      setShareError("");
-                    }}
-                  >
-                    <div className="folder-icon-title">
-                      <svg className="folder-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                      </svg>
-                      <div>
-                        <h4>{folder.name}</h4>
-                        <span className="folder-role-badge">{role}</span>
-                      </div>
-                    </div>
-                    <div className="folder-item-meta">
-                      <span>{folder.resources?.length || 0} items</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <FolderList
+            folders={sharedFolders}
+            activeFolder={activeFolder}
+            onSelectFolder={(folder) => {
+              setActiveFolder(folder);
+              setSharingFolderId(null);
+              setShareError("");
+            }}
+            isLoading={isLoadingShared}
+            error={sharedError}
+            onRetry={() => dispatch(fetchSharedFolders())}
+            emptyMessage="No folders shared with you yet."
+            currentUserId={user?.id}
+            getFolderRole={getFolderRole}
+          />
         </div>
       </aside>
 
