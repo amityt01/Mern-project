@@ -11,6 +11,7 @@ import {
 } from "../store/folderSlice";
 import { addToast } from "../store/toastSlice";
 import { FolderItemSkeleton, TableRowSkeleton } from "./SkeletonLoader";
+import FolderModal from "./FolderModal";
 
 function FolderManager() {
   const dispatch = useDispatch();
@@ -28,8 +29,8 @@ function FolderManager() {
   } = useSelector((state) => state.folders);
   const { user } = useSelector((state) => state.auth);
 
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFolderDesc, setNewFolderDesc] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [modalServerError, setModalServerError] = useState("");
   const [activeFolder, setActiveFolder] = useState(null);
 
   // Sharing states
@@ -56,13 +57,12 @@ function FolderManager() {
     }
   }, [folders, sharedFolders, activeFolder]);
 
-  const handleCreateFolder = async (e) => {
-    e.preventDefault();
-    if (!newFolderName.trim()) return;
+  const handleModalSubmit = async ({ name, description }) => {
+    setModalServerError("");
     dispatch(clearFolderError());
 
     const action = await dispatch(
-      createFolder({ name: newFolderName, description: newFolderDesc })
+      createFolder({ name, description })
     );
 
     if (createFolder.fulfilled.match(action)) {
@@ -73,10 +73,10 @@ function FolderManager() {
           message: `Collaborative folder "${action.payload.name}" is ready.`,
         })
       );
-      setNewFolderName("");
-      setNewFolderDesc("");
+      setIsCreateModalOpen(false);
       setActiveFolder(action.payload);
     } else {
+      setModalServerError(action.payload || "Failed to create folder.");
       dispatch(
         addToast({
           type: "error",
@@ -186,41 +186,34 @@ function FolderManager() {
 
   return (
     <div className="folder-manager-layout">
+      {/* Folder Creation Modal */}
+      <FolderModal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setModalServerError("");
+        }}
+        onSubmit={handleModalSubmit}
+        isSubmitting={isCreating}
+        serverError={modalServerError}
+      />
+
       {/* Sidebar: Folder Creation & List */}
       <aside className="folders-sidebar">
         <div className="create-folder-section">
           <h3>Create Collaborative Folder</h3>
           <p>Group worksheets & lessons, and invite other educators to collaborate.</p>
-          <form onSubmit={handleCreateFolder} className="create-folder-form">
-            <div className="form-group">
-              <input
-                type="text"
-                placeholder="Folder Name (e.g. 5th Grade Science)"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                disabled={isCreating}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <input
-                type="text"
-                placeholder="Folder Description"
-                value={newFolderDesc}
-                onChange={(e) => setNewFolderDesc(e.target.value)}
-                disabled={isCreating}
-              />
-            </div>
-            <button type="submit" className="btn-primary" disabled={isCreating}>
-              {isCreating ? (
-                <>
-                  <span className="btn-spinner" /> Creating Folder...
-                </>
-              ) : (
-                "Create Folder"
-              )}
-            </button>
-          </form>
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ width: "100%" }}
+            onClick={() => {
+              setModalServerError("");
+              setIsCreateModalOpen(true);
+            }}
+          >
+            + New Folder
+          </button>
         </div>
 
         <div className="folders-list-section">
