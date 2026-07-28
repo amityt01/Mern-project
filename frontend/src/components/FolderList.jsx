@@ -41,7 +41,14 @@ function FolderList({
   return (
     <div className="folders-list">
       {folders.map((folder) => {
-        const isActive = activeFolder && activeFolder._id === folder._id;
+        const activeId =
+          typeof activeFolder === "object" && activeFolder !== null
+            ? activeFolder._id || activeFolder.id
+            : activeFolder;
+        const currentFolderId = folder._id || folder.id;
+        const isActive = Boolean(
+          activeId && currentFolderId && activeId === currentFolderId
+        );
         const role = getFolderRole ? getFolderRole(folder) : null;
         const isOwner =
           folder.owner?._id === currentUserId ||

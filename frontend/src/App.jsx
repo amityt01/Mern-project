@@ -13,8 +13,33 @@ import "./App.css";
 function App() {
   const dispatch = useDispatch();
   const { token, user, isLoading } = useSelector((state) => state.auth);
-  const [activeTab, setActiveTab] = useState("resources");
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("folder") || params.get("folderId")) {
+        return "folders";
+      }
+    } catch {
+      // fallback
+    }
+    return "resources";
+  });
   const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("folder") || params.get("folderId")) {
+          setActiveTab("folders");
+        }
+      } catch {
+        // fallback
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (token) {

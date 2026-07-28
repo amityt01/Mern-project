@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   fetchFolders,
   fetchSharedFolders,
+  fetchFolderById,
   createFolder,
   deleteFolder,
   shareFolder,
@@ -11,6 +12,9 @@ import {
   addResourceToFolder,
   removeResourceFromFolder,
   clearFolderError,
+  setSelectedFolder,
+  setSelectedFolderId,
+  clearSelectedFolder,
 } from "../store/folderSlice";
 import { createResource } from "../store/resourceSlice";
 import { addToast } from "../store/toastSlice";
@@ -24,6 +28,10 @@ function FolderManager() {
   const {
     folders,
     sharedFolders,
+    selectedFolder,
+    selectedFolderId,
+    isLoadingFolder,
+    selectedFolderError,
     isLoading,
     isLoadingShared,
     isCreating,
@@ -36,9 +44,10 @@ function FolderManager() {
   } = useSelector((state) => state.folders);
   const { user } = useSelector((state) => state.auth);
 
+  const activeFolder = selectedFolder;
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [modalServerError, setModalServerError] = useState("");
-  const [activeFolder, setActiveFolder] = useState(null);
 
   // Sharing states
   const [sharingFolderId, setSharingFolderId] = useState(null);
@@ -56,18 +65,92 @@ function FolderManager() {
     dispatch(fetchSharedFolders());
   }, [dispatch]);
 
-  // Keep active folder in sync with updated list
-  useEffect(() => {
-    if (activeFolder) {
-      const allFolders = [...folders, ...sharedFolders];
-      const updated = allFolders.find((f) => f._id === activeFolder._id);
-      if (updated && updated !== activeFolder) {
-        setActiveFolder(updated);
-      } else if (!updated) {
-        setActiveFolder(null);
+  const handleSelectFolder = (folder) => {
+    setSharingFolderId(null);
+    setShareError("");
+
+    if (!folder) {
+      dispatch(clearSelectedFolder());
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("folderId");
+        url.searchParams.delete("folder");
+        window.history.pushState({}, "", url.toString());
+      } catch {
+        // Ignore URL update errors
+      }
+      return;
+    }
+
+    if (typeof folder === "object") {
+      dispatch(setSelectedFolder(folder));
+      const targetId = folder._id || folder.id;
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("folderId", targetId);
+        window.history.pushState({}, "", url.toString());
+      } catch {
+        // Ignore URL update errors
+      }
+    } else {
+      dispatch(setSelectedFolderId(folder));
+      dispatch(fetchFolderById(folder));
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("folderId", folder);
+        window.history.pushState({}, "", url.toString());
+      } catch {
+        // Ignore URL update errors
       }
     }
-  }, [folders, sharedFolders, activeFolder]);
+  };
+
+  // Sync URL search parameter (e.g. ?folderId=...) with active folder state
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlFolderId = params.get("folderId") || params.get("folder");
+
+      if (urlFolderId) {
+        const currentActiveId = selectedFolder ? selectedFolder._id || selectedFolder.id : null;
+        if (currentActiveId !== urlFolderId) {
+          const allFolders = [...folders, ...sharedFolders];
+          const found = allFolders.find(
+            (f) => f._id === urlFolderId || f.id === urlFolderId
+          );
+          if (found) {
+            dispatch(setSelectedFolder(found));
+          } else if (!isLoading && !isLoadingShared && !isLoadingFolder && !selectedFolderError) {
+            dispatch(setSelectedFolderId(urlFolderId));
+            dispatch(fetchFolderById(urlFolderId));
+          }
+        }
+      }
+    } catch {
+      // Ignore URL sync errors
+    }
+  }, [
+    dispatch,
+    folders,
+    sharedFolders,
+    isLoading,
+    isLoadingShared,
+    isLoadingFolder,
+    selectedFolder,
+    selectedFolderError,
+  ]);
+
+  // Keep active folder in sync with updated lists
+  useEffect(() => {
+    if (selectedFolder) {
+      const activeId = selectedFolder._id || selectedFolder.id;
+      const allFolders = [...folders, ...sharedFolders];
+      const updated = allFolders.find((f) => (f._id || f.id) === activeId);
+      if (updated && updated !== selectedFolder) {
+        dispatch(setSelectedFolder(updated));
+      }
+    }
+  }, [folders, sharedFolders, selectedFolder, dispatch]);
 
   const handleModalSubmit = async ({ name, description }) => {
     setModalServerError("");
@@ -86,7 +169,7 @@ function FolderManager() {
         })
       );
       setIsCreateModalOpen(false);
-      setActiveFolder(action.payload);
+      handleSelectFolder(action.payload);
     } else {
       setModalServerError(action.payload || "Failed to create folder.");
       dispatch(
@@ -115,8 +198,8 @@ function FolderManager() {
             message: `Folder "${name}" was deleted.`,
           })
         );
-        if (activeFolder && activeFolder._id === id) {
-          setActiveFolder(null);
+        if (activeFolder && (activeFolder._id === id || activeFolder.id === id)) {
+          handleSelectFolder(null);
         }
       } else {
         dispatch(
@@ -405,11 +488,7 @@ function FolderManager() {
           <FolderList
             folders={folders}
             activeFolder={activeFolder}
-            onSelectFolder={(folder) => {
-              setActiveFolder(folder);
-              setSharingFolderId(null);
-              setShareError("");
-            }}
+            onSelectFolder={(folder) => handleSelectFolder(folder)}
             onDeleteFolder={handleDeleteFolder}
             isLoading={isLoading}
             error={error}
@@ -426,11 +505,7 @@ function FolderManager() {
           <FolderList
             folders={sharedFolders}
             activeFolder={activeFolder}
-            onSelectFolder={(folder) => {
-              setActiveFolder(folder);
-              setSharingFolderId(null);
-              setShareError("");
-            }}
+            onSelectFolder={(folder) => handleSelectFolder(folder)}
             isLoading={isLoadingShared}
             error={sharedError}
             onRetry={() => dispatch(fetchSharedFolders())}
@@ -443,7 +518,31 @@ function FolderManager() {
 
       {/* Main Panel: Folder Details & Collaborative Actions */}
       <main className="folder-details-panel">
-        {activeFolder ? (
+        {isLoadingFolder ? (
+          <div className="no-folder-selected">
+            <div className="spinner" style={{ marginBottom: "1rem" }}></div>
+            <h3>Loading Folder...</h3>
+            <p>Fetching folder details and resources...</p>
+          </div>
+        ) : selectedFolderError ? (
+          <div className="no-folder-selected folder-error-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="empty-panel-icon error-panel-icon" style={{ color: "var(--danger, #ef4444)" }}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <h3 style={{ color: "var(--danger, #ef4444)" }}>Folder Not Found</h3>
+            <p>{selectedFolderError}</p>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              style={{ marginTop: "1rem" }}
+              onClick={() => handleSelectFolder(null)}
+            >
+              Back to All Folders
+            </button>
+          </div>
+        ) : activeFolder ? (
           <div className="folder-details-content">
             <div className="folder-details-header">
               <div>
