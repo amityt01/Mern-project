@@ -140,6 +140,19 @@ class MockQuery {
             return res || resId;
           });
         }
+      } else if (path === "sender" || path === "recipient") {
+        const targetId = copy[path] ? (copy[path]._id || copy[path]).toString() : null;
+        const user = users.find((u) => u._id.toString() === targetId);
+        if (user) {
+          copy[path] = { _id: user._id, name: user.name, schoolName: user.schoolName, email: user.email };
+        }
+      } else if (path === "folder") {
+        const folderId = copy.folder ? (copy.folder._id || copy.folder).toString() : null;
+        const dbFolders = db.folders || [];
+        const folderObj = dbFolders.find((f) => f._id.toString() === folderId);
+        if (folderObj) {
+          copy.folder = { _id: folderObj._id, name: folderObj.name, description: folderObj.description };
+        }
       }
       return copy;
     });
@@ -513,6 +526,7 @@ function setupMockMongoose() {
     if (name === "Resource") collName = "resources";
     if (name === "Folder") collName = "folders";
     if (name === "Student") collName = "students";
+    if (name === "Notification") collName = "notifications";
     
     if (!mockModels[name]) {
       mockModels[name] = new MockModel(name, collName);

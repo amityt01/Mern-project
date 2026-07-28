@@ -185,6 +185,49 @@ export const fetchFolderById = createAsyncThunk(
   }
 );
 
+export const fetchSharedFolders = createAsyncThunk(
+  "folders/fetchSharedFolders",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const response = await fetch(`${API_BASE}/folders/shared`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to fetch shared folders");
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
+export const updateCollaboratorPermission = createAsyncThunk(
+  "folders/updateCollaboratorPermission",
+  async ({ id, userId, email, permission }, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const url = userId
+        ? `${API_BASE}/folders/${id}/collaborators/${userId}/permission`
+        : `${API_BASE}/folders/${id}/collaborators/permission`;
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId, email, permission }),
+      });
+      const data = await response.json();
+      if (!response.ok) return rejectWithValue(data.message || "Failed to update permission");
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || "Network error. Unable to connect to server.");
+    }
+  }
+);
+
+
 const initialState = {
   folders: [],
   sharedFolders: [],

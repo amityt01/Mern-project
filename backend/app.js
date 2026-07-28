@@ -40,12 +40,14 @@ const resourcesRouter = require("./routes/resources");
 const foldersRouter = require("./routes/folders");
 const analyticsRouter = require("./routes/analytics");
 const studentsRouter = require("./routes/students");
+const notificationsRouter = require("./routes/notifications");
 
 app.use("/api/auth", authRouter);
 app.use("/api", authRouter);
 app.use("/", authRouter);
 app.use("/api/resources", resourcesRouter);
 app.use("/api/folders", foldersRouter);
+app.use("/api/notifications", notificationsRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/students", studentsRouter);
 app.use("/students", studentsRouter);

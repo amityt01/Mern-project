@@ -5,6 +5,7 @@ const Folder = require("../models/Folder");
 const User = require("../models/User");
 const Resource = require("../models/Resource");
 const { authMiddleware, authorizeRoles } = require("../middleware/auth");
+const { notifyFolderMemberAdded, createInAppNotification } = require("../utils/notificationService");
 
 /**
  * Helper function to determine a user's access level for a collaborative folder.
@@ -278,6 +279,18 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
 
     await folder.save();
 
+    // Trigger notification for member added / invited
+    let senderUser = await User.findById(req.user.id).select("name email schoolName");
+    if (!senderUser) {
+      senderUser = req.user;
+    }
+    await notifyFolderMemberAdded({
+      recipientUser: targetUser,
+      senderUser,
+      folder,
+      permission,
+    });
+
     const updatedFolder = await Folder.findById(req.params.id)
       .populate("owner", "name schoolName email")
       .populate("sharedWith.user", "name schoolName email")
@@ -449,6 +462,18 @@ const inviteUserHandler = async (req, res) => {
     folder.sharedWith.push({ user: targetUser._id, permission });
     await folder.save();
 
+    // Trigger notification for member added / invited
+    let senderUser = await User.findById(req.user.id).select("name email schoolName");
+    if (!senderUser) {
+      senderUser = req.user;
+    }
+    await notifyFolderMemberAdded({
+      recipientUser: targetUser,
+      senderUser,
+      folder,
+      permission,
+    });
+
     const updatedFolder = await Folder.findById(folderId)
       .populate("owner", "name schoolName email")
       .populate("sharedWith.user", "name schoolName email")
@@ -497,6 +522,23 @@ const removeUserHandler = async (req, res) => {
 
     folder.sharedWith.splice(existingIndex, 1);
     await folder.save();
+
+    // Trigger in-app notification for member removed
+    try {
+      let targetUser = await User.findById(userId);
+      if (targetUser && targetUser._id.toString() !== req.user.id) {
+        const senderName = req.user.name || req.user.email || "Folder Owner";
+        await createInAppNotification({
+          recipientId: targetUser._id,
+          senderId: req.user.id,
+          folderId: folder._id,
+          type: "member_removed",
+          message: `${senderName} removed you from folder "${folder.name}".`,
+        });
+      }
+    } catch (nErr) {
+      console.error("Error creating member removed notification:", nErr.message);
+    }
 
     const updatedFolder = await Folder.findById(folderId)
       .populate("owner", "name schoolName email")
@@ -550,6 +592,24 @@ const updatePermissionHandler = async (req, res) => {
 
     folder.sharedWith[shareIndex].permission = permission;
     await folder.save();
+
+    // Trigger in-app notification for permission update
+    try {
+      let targetUser = await User.findById(userId);
+      if (targetUser) {
+        const roleText = permission === "write" ? "an Editor" : "a Viewer";
+        const senderName = req.user.name || req.user.email || "Folder Owner";
+        await createInAppNotification({
+          recipientId: targetUser._id,
+          senderId: req.user.id,
+          folderId: folder._id,
+          type: "permission_update",
+          message: `${senderName} updated your permission for folder "${folder.name}" to ${roleText}.`,
+        });
+      }
+    } catch (nErr) {
+      console.error("Error creating permission update notification:", nErr.message);
+    }
 
     const updatedFolder = await Folder.findById(folderId)
       .populate("owner", "name schoolName email")
