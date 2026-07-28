@@ -7,6 +7,7 @@ import {
   deleteResource,
   downloadResource,
   setFilters,
+  resetFilters,
   clearResourceError,
 } from "../store/resourceSlice";
 import { addResourceToFolder } from "../store/folderSlice";
@@ -34,6 +35,26 @@ function ResourcesView() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 6;
 
+  // Local state for search input to support debounced queries
+  const [searchInput, setSearchInput] = useState(filters.search || "");
+
+  // Synchronize local search input if Redux filters.search changes externally
+  useEffect(() => {
+    setSearchInput(filters.search || "");
+  }, [filters.search]);
+
+  // Debounce search input updates (400ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== filters.search) {
+        setCurrentPage(1);
+        dispatch(setFilters({ search: searchInput }));
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, filters.search, dispatch]);
+
   useEffect(() => {
     dispatch(fetchResources(filters));
   }, [filters, dispatch]);
@@ -43,10 +64,24 @@ function ResourcesView() {
     dispatch(setFilters({ [e.target.name]: e.target.value }));
   };
 
+  const handleSearchInputChange = (e) => {
+    setSearchInput(e.target.value);
+  };
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     setCurrentPage(1);
-    dispatch(fetchResources(filters));
+    if (searchInput !== filters.search) {
+      dispatch(setFilters({ search: searchInput }));
+    } else {
+      dispatch(fetchResources(filters));
+    }
+  };
+
+  const handleResetFilters = () => {
+    setCurrentPage(1);
+    setSearchInput("");
+    dispatch(resetFilters());
   };
 
   const openCreateModal = () => {
@@ -229,8 +264,8 @@ function ResourcesView() {
             type="text"
             name="search"
             placeholder="Search resources by keywords..."
-            value={filters.search}
-            onChange={handleFilterChange}
+            value={searchInput}
+            onChange={handleSearchInputChange}
           />
           <button type="submit" className="btn-primary">Search</button>
         </form>
@@ -265,6 +300,16 @@ function ResourcesView() {
               ))}
             </select>
           </div>
+
+          {(filters.category || filters.subject || filters.gradeLevel || filters.search || searchInput) && (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleResetFilters}
+            >
+              Reset Filters
+            </button>
+          )}
 
           <button
             type="button"
