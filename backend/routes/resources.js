@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
 const Resource = require("../models/Resource");
+const Folder = require("../models/Folder");
 const { authMiddleware, authorizeRoles } = require("../middleware/auth");
 const upload = require("../middleware/upload");
 const { exportUsageCsv } = require("./analytics");
@@ -230,23 +231,37 @@ router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.s
 // @desc    Delete a resource (authenticated, must be author or Admin)
 router.delete("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), async (req, res) => {
   try {
-    const resource = await Resource.findById(req.params.id);
+    const { id } = req.params;
+
+    // Validate resource ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid resource ID" });
+    }
+
+    const resource = await Resource.findById(id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
 
     // Check ownership or Admin role
-    const isOwner = resource.author.toString() === req.user.id;
+    const userId = req.user.id || req.user._id;
+    const isOwner = resource.author.toString() === userId.toString();
     const isAdmin = req.user.role === "Admin";
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: "Unauthorized. You can only delete your own resources." });
     }
 
-    await Resource.findByIdAndDelete(req.params.id);
-    res.json({ message: "Resource deleted successfully" });
+    await Resource.findByIdAndDelete(id);
+
+    // Remove reference from folders
+    if (Folder) {
+      await Folder.updateMany({ resources: id }, { $pull: { resources: id } });
+    }
+
+    res.json({ message: "Resource deleted successfully", id });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: err.message || "Server error while deleting resource" });
   }
 });
 
