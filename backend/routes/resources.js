@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Resource = require("../models/Resource");
 const { authMiddleware, authorizeRoles } = require("../middleware/auth");
@@ -147,7 +148,14 @@ router.post("/", authMiddleware, authorizeRoles("Admin", "Educator"), upload.sin
 // @desc    Update a resource (authenticated, must be author or Admin)
 router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.single("file"), async (req, res) => {
   try {
-    let resource = await Resource.findById(req.params.id);
+    const { id } = req.params;
+
+    // Validate resource ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid resource ID" });
+    }
+
+    let resource = await Resource.findById(id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
@@ -160,19 +168,56 @@ router.put("/:id", authMiddleware, authorizeRoles("Admin", "Educator"), upload.s
       return res.status(403).json({ message: "Unauthorized. You can only edit your own resources." });
     }
 
-    const updateData = { ...req.body };
+    // Validate input data if provided
+    const { title, description, category, subject, gradeLevel, content } = req.body;
+
+    if (title !== undefined && (!title || typeof title !== "string" || !title.trim())) {
+      return res.status(400).json({ message: "Title cannot be empty." });
+    }
+
+    const ALLOWED_CATEGORIES = ["Worksheet", "Lesson Plan", "Activity", "Study Guide"];
+    if (category !== undefined && !ALLOWED_CATEGORIES.includes(category)) {
+      return res.status(400).json({ message: `Invalid category. Must be one of: ${ALLOWED_CATEGORIES.join(", ")}` });
+    }
+
+    const ALLOWED_SUBJECTS = ["Math", "Science", "English", "Social Studies", "Other"];
+    if (subject !== undefined && !ALLOWED_SUBJECTS.includes(subject)) {
+      return res.status(400).json({ message: `Invalid subject. Must be one of: ${ALLOWED_SUBJECTS.join(", ")}` });
+    }
+
+    const ALLOWED_GRADE_LEVELS = ["Primary", "Middle", "High"];
+    if (gradeLevel !== undefined && !ALLOWED_GRADE_LEVELS.includes(gradeLevel)) {
+      return res.status(400).json({ message: `Invalid grade level. Must be one of: ${ALLOWED_GRADE_LEVELS.join(", ")}` });
+    }
+
+    // Prepare metadata update fields
+    const updateData = {};
+    if (title !== undefined) updateData.title = title.trim();
+    if (description !== undefined) updateData.description = description;
+    if (category !== undefined) updateData.category = category;
+    if (subject !== undefined) updateData.subject = subject;
+    if (gradeLevel !== undefined) updateData.gradeLevel = gradeLevel;
+    if (content !== undefined) updateData.content = content;
+
+    // Preserve existing file metadata if no new file is uploaded
     if (req.file) {
       updateData.fileName = req.file.filename;
       updateData.originalName = req.file.originalname;
       updateData.filePath = req.file.fileUrl || `/uploads/${req.file.filename}`;
       updateData.fileSize = req.file.size;
       updateData.fileType = req.file.mimetype;
+    } else {
+      updateData.fileName = resource.fileName;
+      updateData.originalName = resource.originalName;
+      updateData.filePath = resource.filePath;
+      updateData.fileSize = resource.fileSize;
+      updateData.fileType = resource.fileType;
     }
 
     resource = await Resource.findByIdAndUpdate(
-      req.params.id,
+      id,
       { $set: updateData },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate("author", "name schoolName");
 
     res.json(resource);
