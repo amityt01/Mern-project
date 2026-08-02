@@ -1867,6 +1867,7 @@ body {
 .highlight-text span {
   font-size: 12px;
   color: var(--text-secondary);
+}
 /* Analytics Line Chart Section */
 .analytics-chart-section {
   margin-bottom: 24px;
@@ -4028,4 +4029,4 @@ body {
   width: 14px;
   height: 14px;
 }
-
+
